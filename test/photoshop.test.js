@@ -54,6 +54,12 @@ function createFixture() {
       BlendMode: {LINEARLIGHT: "linearLight"},
       ElementPlacement: {PLACEBEFORE: "placeBefore"}
     },
+    action: {
+      async batchPlay(descriptors) {
+        calls.batchPlay = descriptors;
+        return [{}];
+      }
+    },
     core: {
       async executeAsModal(callback) {
         calls.modalDepth++;
@@ -119,6 +125,8 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   const captured = adapter.captureTarget();
   assert.equal(captured.layerId, fixture.target.id);
   assert.equal(adapter.getActiveLayerIdentity().layerId, fixture.target.id);
+  await adapter.activateBackgroundSelectionTool();
+  assert.equal(fixture.calls.batchPlay[0]._target[0]._ref, "marqueeRectTool");
   const analysis = await adapter.analyzeSelection();
   assert.ok(analysis.sampleCount >= 128);
   assert.equal(fixture.calls.modalDepth, 0);
@@ -132,6 +140,7 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   });
   assert.equal(previewId, 99);
   const preview = fixture.document.layers[0];
+  assert.equal(preview.name, "MeiNoise - Pasted subject");
   assert.equal(preview.blendMode, "linearLight");
   assert.equal(preview.isClippingMask, true);
   assert.deepEqual(preview.moved, {relative: fixture.target, placement: "placeBefore"});

@@ -10,17 +10,17 @@
   <main>
     <header>
       <h1>MeiNoise</h1>
-      <p>选择图层 → 选择并分析背景 → 调节参数 → 完成</p>
+      <p>选择图层 → 选择并分析背景 → 调节参数，实时生成</p>
     </header>
     <div id="bootError" class="boot-error">控制器未启动。请重新加载插件。</div>
 
     <div class="scroll-area">
       <section class="analysis-card">
         <div class="analysis-title">
-          <button id="analyze" class="button secondary">分析背景选区（可选）</button>
+          <button id="analyze" class="button secondary">选择背景样本</button>
           <button id="infoButton" class="info-button" aria-label="背景选区说明" aria-expanded="false">ⓘ</button>
         </div>
-        <p class="hint">包含暗/中/亮样本，可匹配非均质明暗响应。</p>
+        <p id="analysisHint" class="hint">用于匹配非均质明暗响应；不分析也可直接调节。</p>
         <div id="infoPopover" class="info-popover hidden" role="note">
           <strong>如何选择背景样本</strong>
           <ol>
@@ -55,11 +55,7 @@
     </div>
 
     <div class="fixed-controls">
-      <div class="row actions">
-        <button id="cancel" class="button secondary">取消</button>
-        <button id="complete" class="button primary" disabled>完成</button>
-      </div>
-      <footer id="status" aria-live="polite">先选择目标图层；背景分析可选。</footer>
+      <footer id="status" aria-live="polite">选择目标图层后即可开始；生成层会实时更新。</footer>
     </div>
   </main>
 </body>

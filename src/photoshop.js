@@ -1,8 +1,7 @@
-const {app, core, imaging, constants} = require("photoshop");
+const {app, core, imaging, constants, action} = require("photoshop");
 const {analyzeGrain, generateGrainBand, clamp} = require("./math.js");
 
-const PREVIEW_NAME = "MeiNoise Preview";
-const FINAL_NAME = "MeiNoise Grain";
+const GRAIN_PREFIX = "MeiNoise - ";
 const MAX_ANALYSIS_EDGE = 512;
 const BAND_HEIGHT = 192;
 
@@ -68,10 +67,23 @@ function captureTarget() {
   validateDocument(document);
   const layer = document.activeLayers && document.activeLayers[0];
   if (!layer) throw new Error("请选择一个目标图层。");
-  if (layer.name === PREVIEW_NAME) throw new Error("请选择预览层下方的目标图层。");
+  if (layer.name.startsWith(GRAIN_PREFIX)) throw new Error("请选择需要匹配颗粒的原图层，而不是 MeiNoise 颗粒层。");
   const bounds = normalizeBounds(layer.boundsNoEffects || layer.bounds, document);
   if (bounds.right <= bounds.left || bounds.bottom <= bounds.top) throw new Error("目标图层没有可处理的像素范围。");
   return {documentId: document.id, layerId: layer.id, name: layer.name, bounds};
+}
+
+async function activateBackgroundSelectionTool() {
+  await core.executeAsModal(async () => {
+    const result = await action.batchPlay([{
+      _obj: "select",
+      _target: [{_ref: "marqueeRectTool"}],
+      _options: {dialogOptions: "dontDisplay"}
+    }], {});
+    if (result && result[0] && result[0]._obj === "error") {
+      throw new Error(result[0].message || "无法切换到矩形选框工具。");
+    }
+  }, {commandName: "Select MeiNoise background sample"});
 }
 
 function getActiveLayerIdentity() {
@@ -161,7 +173,7 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
     try {
       if (previousPreviewId) await deleteLayerById(document, previousPreviewId);
       const preview = await document.createLayer({
-        name: PREVIEW_NAME,
+        name: GRAIN_PREFIX + target.name,
         blendMode: constants.BlendMode.LINEARLIGHT,
         fillNeutral: false,
         opacity: 100
@@ -259,7 +271,7 @@ async function applyPreview(target, previewId) {
   await core.executeAsModal(async () => {
     const layer = findLayer(resolved.document.layers, previewId);
     if (!layer) throw new Error("预览图层已不存在，请重新生成。");
-    layer.name = FINAL_NAME;
+    layer.name = GRAIN_PREFIX + target.name;
   }, {commandName: "Apply MeiNoise"});
 }
 
@@ -275,6 +287,7 @@ async function setPreviewVisibility(target, previewId, visible) {
 module.exports = {
   captureTarget,
   getActiveLayerIdentity,
+  activateBackgroundSelectionTool,
   analyzeSelection,
   renderPreview,
   cancelPreview,

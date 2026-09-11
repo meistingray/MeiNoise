@@ -16,6 +16,7 @@ const state = {
   busy: false,
   pendingRender: false,
   renderTimer: null,
+  awaitingBackgroundSelection: false,
   wired: false
 };
 
@@ -28,10 +29,7 @@ function setStatus(message, isError = false) {
 }
 
 function updateAvailability() {
-  const hasPreview = Boolean(state.previewId);
-  byId("complete").disabled = !hasPreview || state.busy;
   byId("analyze").disabled = state.busy;
-  byId("cancel").disabled = state.busy;
 }
 
 function setBusy(busy) {
@@ -61,6 +59,14 @@ function explainError(error) {
   setStatus(error && error.message ? error.message : String(error), true);
 }
 
+function setBackgroundSelectionStage(awaiting) {
+  state.awaitingBackgroundSelection = awaiting;
+  byId("analyze").textContent = awaiting ? "分析所选背景" : "选择背景样本";
+  byId("analysisHint").textContent = awaiting
+    ? "请在画面中框选背景，然后再次点击上方按钮。"
+    : "用于匹配非均质明暗响应；不分析也可直接调节。";
+}
+
 async function ensureTarget() {
   const ps = photoshop();
   const active = ps.getActiveLayerIdentity();
@@ -76,20 +82,35 @@ async function ensureTarget() {
   }
   if (targetIsUsable) return;
 
-  if (state.previewId && state.target) {
-    try {
-      await ps.cancelPreview(state.target, state.previewId);
-    } catch (error) {
-      // A stale preview must never prevent the user from choosing a new layer.
-      console.warn("Unable to remove stale MeiNoise preview.", error);
-    }
-  }
+  // A generated grain layer is already final. Preserve it when changing target.
   state.previewId = null;
   state.target = null;
   state.toneCurve = DEFAULT_TONE_CURVE.slice();
+  setBackgroundSelectionStage(false);
   byId("analysisResult").classList.add("hidden");
   state.target = ps.captureTarget();
   updateAvailability();
+}
+
+async function beginBackgroundSelection() {
+  if (state.busy) return;
+  setBusy(true);
+  setStatus("正在准备背景选区……");
+  try {
+    await ensureTarget();
+    await photoshop().activateBackgroundSelectionTool();
+    setBackgroundSelectionStage(true);
+    setStatus("请框选靠近目标的干净背景，然后点击“分析所选背景”。");
+  } catch (error) {
+    explainError(error);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function handleAnalyze() {
+  if (state.awaitingBackgroundSelection) analyze();
+  else beginBackgroundSelection();
 }
 
 function requestRender(delay = 260) {
@@ -127,6 +148,7 @@ async function analyze() {
       ? `已匹配背景颗粒 · 明暗响应完整 · 置信度${confidence}`
       : `已匹配背景颗粒 · 明暗响应部分使用默认值 · 置信度${confidence}`;
     resultNode.classList.remove("hidden");
+    setBackgroundSelectionStage(false);
     setStatus("分析结果已写入参数，正在更新预览……");
     succeeded = true;
   } catch (error) {
@@ -171,38 +193,6 @@ function onControlInput() {
   requestRender();
 }
 
-async function cancel() {
-  if (state.busy) return;
-  if (state.renderTimer) clearTimeout(state.renderTimer);
-  setBusy(true);
-  try {
-    if (state.previewId && state.target) await photoshop().cancelPreview(state.target, state.previewId);
-    state.previewId = null;
-    state.target = null;
-    setStatus("已取消。");
-  } catch (error) {
-    explainError(error);
-  } finally {
-    setBusy(false);
-  }
-}
-
-async function complete() {
-  if (state.busy || !state.previewId) return;
-  if (state.renderTimer) clearTimeout(state.renderTimer);
-  setBusy(true);
-  try {
-    await photoshop().applyPreview(state.target, state.previewId);
-    state.previewId = null;
-    state.target = null;
-    setStatus("已完成。");
-  } catch (error) {
-    explainError(error);
-  } finally {
-    setBusy(false);
-  }
-}
-
 function toggleInfo(event) {
   event.stopPropagation();
   const popover = byId("infoPopover");
@@ -220,11 +210,9 @@ function closeInfo(event) {
 function wirePanel() {
   if (state.wired) return;
   state.wired = true;
-  byId("analyze").addEventListener("click", analyze);
+  byId("analyze").addEventListener("click", handleAnalyze);
   byId("infoButton").addEventListener("click", toggleInfo);
   document.addEventListener("click", closeInfo);
-  byId("cancel").addEventListener("click", cancel);
-  byId("complete").addEventListener("click", complete);
   for (const id of ["amount", "size", "chroma", "seed"]) {
     byId(id).addEventListener("input", onControlInput);
     byId(id).addEventListener("change", onControlInput);

@@ -20,11 +20,12 @@ test("panel loads a root external controller from the head", () => {
 
 test("compact panel exposes every agreed interaction", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const id of ["analyze", "infoButton", "amount", "size", "chroma", "seed", "cancel", "complete"]) {
+  for (const id of ["analyze", "infoButton", "analysisHint", "amount", "size", "chroma", "seed"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
   }
   assert.doesNotMatch(html, /id=["']compare["']/);
-  assert.match(html, /选择图层 → 选择并分析背景 → 调节参数 → 完成/);
+  assert.doesNotMatch(html, /id=["'](?:cancel|complete)["']/);
+  assert.match(html, /选择图层 → 选择并分析背景 → 调节参数，实时生成/);
   assert.doesNotMatch(html, /id=["']setTarget["']/);
   assert.doesNotMatch(html, /id=["']preview["']/);
 });
