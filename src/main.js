@@ -1,4 +1,4 @@
-const {entrypoints} = require("uxp");
+const {entrypoints, versions} = require("uxp");
 
 // Keep the panel controls usable even if Photoshop rejects a host API while
 // loading the adapter. The adapter is loaded only when an operation needs it.
@@ -204,25 +204,33 @@ function onControlInput() {
   requestRender();
 }
 
-function toggleInfo(event) {
+function togglePopover(event, buttonId, popoverId) {
   event.stopPropagation();
-  const popover = byId("infoPopover");
+  const popover = byId(popoverId);
   const willShow = popover.classList.contains("hidden");
+  for (const id of ["infoPopover", "copyrightPopover"]) {
+    byId(id).classList.add("hidden");
+  }
   popover.classList.toggle("hidden", !willShow);
-  byId("infoButton").setAttribute("aria-expanded", String(willShow));
+  byId("infoButton").setAttribute("aria-expanded", "false");
+  byId("copyrightButton").setAttribute("aria-expanded", "false");
+  byId(buttonId).setAttribute("aria-expanded", String(willShow));
 }
 
 function closeInfo(event) {
-  if (event && byId("infoPopover").contains(event.target)) return;
+  if (event && (byId("infoPopover").contains(event.target) || byId("copyrightPopover").contains(event.target))) return;
   byId("infoPopover").classList.add("hidden");
+  byId("copyrightPopover").classList.add("hidden");
   byId("infoButton").setAttribute("aria-expanded", "false");
+  byId("copyrightButton").setAttribute("aria-expanded", "false");
 }
 
 function wirePanel() {
   if (state.wired) return;
   state.wired = true;
   byId("analyze").addEventListener("click", beginBackgroundSelection);
-  byId("infoButton").addEventListener("click", toggleInfo);
+  byId("infoButton").addEventListener("click", (event) => togglePopover(event, "infoButton", "infoPopover"));
+  byId("copyrightButton").addEventListener("click", (event) => togglePopover(event, "copyrightButton", "copyrightPopover"));
   document.addEventListener("click", closeInfo);
   for (const id of ["amount", "size", "chroma", "seed"]) {
     byId(id).addEventListener("input", onControlInput);
@@ -231,6 +239,7 @@ function wirePanel() {
 
   updateOutputs();
   updateAvailability();
+  byId("pluginVersion").textContent = "v" + versions.plugin;
   const bootError = byId("bootError");
   if (bootError) bootError.classList.add("hidden");
 }

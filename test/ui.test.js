@@ -20,12 +20,13 @@ test("panel loads a root external controller from the head", () => {
 
 test("compact panel exposes every agreed interaction", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const id of ["analyze", "infoButton", "analysisHint", "amount", "size", "chroma", "seed"]) {
+  for (const id of ["pluginVersion", "copyrightButton", "copyrightPopover", "analyze", "infoButton", "analysisHint", "amount", "size", "chroma", "seed"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
   }
   assert.doesNotMatch(html, /id=["']compare["']/);
   assert.doesNotMatch(html, /id=["'](?:cancel|complete)["']/);
   assert.match(html, /选择图层 → 选择并分析背景 → 调节参数，实时生成/);
+  assert.match(html, /© 2026 MeiStingray, Kicity\* Studio, www\.kicity\.com/);
   const controller = fs.readFileSync(path.join(root, "src", "main.js"), "utf8");
   assert.match(controller, /hasBackgroundSelection/);
   assert.match(controller, /listenForBackgroundSelection/);

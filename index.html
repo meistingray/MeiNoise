@@ -9,8 +9,15 @@
 <body>
   <main>
     <header>
-      <h1>MeiNoise</h1>
-      <p>选择图层 → 选择并分析背景 → 调节参数，实时生成</p>
+      <div class="brand-row">
+        <h1>MeiNoise</h1>
+        <span id="pluginVersion" class="plugin-version">v0.1.10</span>
+        <button id="copyrightButton" class="info-button copyright-button" aria-label="版权信息" aria-expanded="false">ⓘ</button>
+      </div>
+      <p class="subtitle">选择图层 → 选择并分析背景 → 调节参数，实时生成</p>
+      <div id="copyrightPopover" class="info-popover copyright-popover hidden" role="note">
+        © 2026 MeiStingray, Kicity* Studio, www.kicity.com
+      </div>
     </header>
     <div id="bootError" class="boot-error">控制器未启动。请重新加载插件。</div>
 
