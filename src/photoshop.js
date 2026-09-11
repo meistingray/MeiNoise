@@ -36,10 +36,24 @@ function activeDocument() {
 }
 
 function validateDocument(document) {
-  const mode = String(document.mode || "").toLowerCase();
-  if (mode && !mode.includes("rgb")) throw new Error("MeiNoise 目前只支持 RGB 文档。");
-  const depth = Number(document.bitsPerChannel || document.depth || 8);
-  if (depth !== 8 && depth !== 16) throw new Error("MeiNoise 目前只支持 8 位和 16 位文档。");
+  const documentModes = constants.DocumentMode || {};
+  const mode = document.mode;
+  const isRgb = mode === undefined || mode === null ||
+    mode === documentModes.RGB || String(mode).toLowerCase().includes("rgb");
+  if (!isRgb) throw new Error("MeiNoise 目前只支持 RGB 文档。");
+
+  // UXP returns a BitsPerChannelType enum (for example "bitDepth8"), not
+  // the numeric value shown in Photoshop's document tab.
+  const depthTypes = constants.BitsPerChannelType || {};
+  const depth = document.bitsPerChannel === undefined
+    ? (document.depth === undefined ? 8 : document.depth)
+    : document.bitsPerChannel;
+  const normalizedDepth = String(depth).toLowerCase();
+  const isEight = depth === depthTypes.EIGHT || depth === 8 ||
+    normalizedDepth === "8" || normalizedDepth === "bitdepth8";
+  const isSixteen = depth === depthTypes.SIXTEEN || depth === 16 ||
+    normalizedDepth === "16" || normalizedDepth === "bitdepth16";
+  if (!isEight && !isSixteen) throw new Error("MeiNoise 目前只支持 8 位和 16 位文档。");
 }
 
 function captureTarget() {

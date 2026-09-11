@@ -27,6 +27,7 @@ function createFixture() {
     width: 32,
     height: 24,
     mode: "RGBColorMode",
+    bitsPerChannel: "bitDepth8",
     colorProfileName: "sRGB IEC61966-2.1",
     activeLayers: [target],
     layers: [target],
@@ -48,6 +49,8 @@ function createFixture() {
   const photoshopMock = {
     app: {documents: [document], activeDocument: document},
     constants: {
+      BitsPerChannelType: {EIGHT: "bitDepth8", SIXTEEN: "bitDepth16", THIRTYTWO: "bitDepth32"},
+      DocumentMode: {RGB: "RGBColorMode", CMYK: "CMYKColorMode"},
       BlendMode: {LINEARLIGHT: "linearLight"},
       ElementPlacement: {PLACEBEFORE: "placeBefore"}
     },
@@ -133,4 +136,25 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   assert.equal(preview.visible, false);
   await adapter.setPreviewVisibility(captured, previewId, true);
   assert.equal(preview.visible, true);
+});
+
+test("Photoshop adapter accepts UXP 8-bit and 16-bit enum values", () => {
+  for (const depth of ["bitDepth8", "bitDepth16"]) {
+    const fixture = createFixture();
+    fixture.document.bitsPerChannel = depth;
+    const originalLoad = Module._load;
+    Module._load = function(request, parent, isMain) {
+      if (request === "photoshop") return fixture.photoshopMock;
+      return originalLoad.call(this, request, parent, isMain);
+    };
+
+    let adapter;
+    try {
+      delete require.cache[require.resolve("../src/photoshop.js")];
+      adapter = require("../src/photoshop.js");
+    } finally {
+      Module._load = originalLoad;
+    }
+    assert.doesNotThrow(() => adapter.captureTarget());
+  }
 });
