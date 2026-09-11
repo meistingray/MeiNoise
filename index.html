@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="styles.css">
+  <script src="src/main.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>MeiNoise</h1>
+      <p>从背景选区匹配目标图层的颗粒。</p>
+    </header>
+
+    <section class="card">
+      <div class="step">
+        <span class="badge">1</span>
+        <div>
+          <strong>目标图层</strong>
+          <div id="targetName" class="muted">尚未设置</div>
+        </div>
+      </div>
+      <sp-button id="setTarget" variant="secondary">使用当前图层</sp-button>
+    </section>
+
+    <section class="card">
+      <div class="step">
+        <span class="badge">2</span>
+        <div>
+          <strong>背景样本</strong>
+          <div class="muted">在干净背景上框选区域，然后分析</div>
+        </div>
+      </div>
+      <sp-button id="analyze" variant="secondary">分析选区</sp-button>
+      <div id="analysisResult" class="analysis hidden"></div>
+    </section>
+
+    <section class="controls">
+      <label>
+        <span>Amount <output id="amountValue">2.0%</output></span>
+        <input id="amount" type="range" min="0" max="12" step="0.1" value="2">
+      </label>
+      <label>
+        <span>Size <output id="sizeValue">1.0 px</output></span>
+        <input id="size" type="range" min="0.5" max="6" step="0.1" value="1">
+      </label>
+      <label>
+        <span>Chroma <output id="chromaValue">15%</output></span>
+        <input id="chroma" type="range" min="0" max="100" step="1" value="15">
+      </label>
+    </section>
+
+    <div class="row">
+      <sp-button id="randomize" variant="secondary">Randomize</sp-button>
+      <label class="toggle"><input id="autoPreview" type="checkbox" checked> 自动预览</label>
+    </div>
+
+    <sp-button id="preview" variant="primary">更新预览</sp-button>
+    <div class="row bottom">
+      <sp-button id="cancel" variant="secondary">取消</sp-button>
+      <sp-button id="apply" variant="cta">应用</sp-button>
+    </div>
+
+    <footer id="status" aria-live="polite">请选择要加颗粒的图层。</footer>
+  </main>
+</body>
+</html>

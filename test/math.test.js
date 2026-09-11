@@ -1,0 +1,72 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const {robustSigma, hash2D, toneGain, generateGrainBand, analyzeGrain} = require("../src/math.js");
+
+test("robustSigma ignores a large outlier", () => {
+  const data = [-1, -1, -0.8, -0.5, 0, 0.4, 0.8, 1, 100];
+  assert.ok(robustSigma(data) < 2);
+});
+
+test("hash is deterministic and coordinate dependent", () => {
+  assert.equal(hash2D(12, 34, 56), hash2D(12, 34, 56));
+  assert.notEqual(hash2D(12, 34, 56), hash2D(13, 34, 56));
+});
+
+test("tone curve interpolates its three anchors", () => {
+  assert.equal(toneGain(0, [2, 1, 0.5]), 2);
+  assert.equal(toneGain(0.5, [2, 1, 0.5]), 1);
+  assert.equal(toneGain(1, [2, 1, 0.5]), 0.5);
+});
+
+test("grain output is deterministic and centered around neutral gray", () => {
+  const width = 128;
+  const height = 128;
+  const targetData = new Uint8Array(width * height * 4).fill(128);
+  for (let i = 3; i < targetData.length; i += 4) targetData[i] = 255;
+  const options = {targetData, width, height, components: 4, componentSize: 8, originX: 0, originY: 0, amount: 3, size: 1.2, chroma: 0, seed: 42, toneCurve: [1, 1, 1]};
+  const first = generateGrainBand(options);
+  const second = generateGrainBand(options);
+  assert.deepEqual(first, second);
+  const mean = first.reduce((sum, value) => sum + value, 0) / first.length;
+  assert.ok(Math.abs(mean - 127.5) < 1.5, `mean was ${mean}`);
+  for (let i = 0; i < first.length; i += 3) {
+    assert.equal(first[i], first[i + 1]);
+    assert.equal(first[i], first[i + 2]);
+  }
+});
+
+test("analysis returns bounded controls for a noisy flat patch", () => {
+  const width = 96;
+  const height = 96;
+  const data = new Uint8Array(width * height * 3);
+  const mask = new Uint8Array(width * height).fill(255);
+  let state = 12345;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  for (let i = 0; i < data.length; i++) data[i] = Math.round(128 + (random() - 0.5) * 18);
+  const result = analyzeGrain({data, mask, width, height, components: 3, componentSize: 8});
+  assert.ok(result.amount >= 0.1 && result.amount <= 12);
+  assert.ok(result.size >= 0.5 && result.size <= 6);
+  assert.ok(result.chroma >= 0 && result.chroma <= 100);
+  assert.equal(result.toneCurve.length, 3);
+  assert.ok(result.chroma > 70, `independent RGB noise gave Chroma ${result.chroma}`);
+});
+
+test("analysis recognizes common-channel noise as low Chroma", () => {
+  const width = 96;
+  const height = 96;
+  const data = new Uint8Array(width * height * 3);
+  const mask = new Uint8Array(width * height).fill(255);
+  let state = 9876;
+  for (let pixel = 0; pixel < width * height; pixel++) {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    const value = Math.round(128 + (state / 4294967296 - 0.5) * 18);
+    data[pixel * 3] = value;
+    data[pixel * 3 + 1] = value;
+    data[pixel * 3 + 2] = value;
+  }
+  const result = analyzeGrain({data, mask, width, height, components: 3, componentSize: 8});
+  assert.ok(result.chroma < 5, `common RGB noise gave Chroma ${result.chroma}`);
+});
