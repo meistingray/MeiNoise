@@ -53,6 +53,13 @@ function captureTarget() {
   return {documentId: document.id, layerId: layer.id, name: layer.name, bounds};
 }
 
+function getActiveLayerIdentity() {
+  const document = activeDocument();
+  const layer = document.activeLayers && document.activeLayers[0];
+  if (!layer) throw new Error("请选择要添加颗粒的图层。");
+  return {documentId: document.id, layerId: layer.id, name: layer.name};
+}
+
 function resolveTarget(target) {
   const document = activeDocument();
   if (!target || document.id !== target.documentId) throw new Error("目标文档已改变，请重新设置目标图层。");
@@ -231,4 +238,22 @@ async function applyPreview(target, previewId) {
   }, {commandName: "Apply MeiNoise"});
 }
 
-module.exports = {captureTarget, analyzeSelection, renderPreview, cancelPreview, applyPreview, resolveTarget};
+async function setPreviewVisibility(target, previewId, visible) {
+  if (!previewId) return;
+  const resolved = resolveTarget(target);
+  await core.executeAsModal(async () => {
+    const layer = findLayer(resolved.document.layers, previewId);
+    if (layer) layer.visible = visible;
+  }, {commandName: visible ? "Show MeiNoise preview" : "Hide MeiNoise preview"});
+}
+
+module.exports = {
+  captureTarget,
+  getActiveLayerIdentity,
+  analyzeSelection,
+  renderPreview,
+  cancelPreview,
+  applyPreview,
+  setPreviewVisibility,
+  resolveTarget
+};

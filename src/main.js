@@ -1,14 +1,16 @@
 const {entrypoints} = require("uxp");
 const photoshop = require("./photoshop.js");
 
+const DEFAULT_TONE_CURVE = [1.18, 1, 0.72];
 const state = {
   target: null,
   previewId: null,
-  toneCurve: [1.18, 1, 0.72],
-  seed: 1376312589,
+  toneCurve: DEFAULT_TONE_CURVE.slice(),
   busy: false,
+  pendingRender: false,
   renderTimer: null,
-  renderSerial: 0,
+  compareHeld: false,
+  visibilityQueue: Promise.resolve(),
   wired: false
 };
 
@@ -20,11 +22,17 @@ function setStatus(message, isError = false) {
   status.classList.toggle("error", isError);
 }
 
+function updateAvailability() {
+  const hasPreview = Boolean(state.previewId);
+  byId("compare").disabled = !hasPreview || state.busy;
+  byId("complete").disabled = !hasPreview || state.busy;
+  byId("analyze").disabled = state.busy;
+  byId("cancel").disabled = state.busy;
+}
+
 function setBusy(busy) {
   state.busy = busy;
-  for (const id of ["setTarget", "analyze", "preview", "randomize", "apply", "cancel"]) {
-    byId(id).disabled = busy;
-  }
+  updateAvailability();
 }
 
 function settings() {
@@ -32,8 +40,8 @@ function settings() {
     amount: Number(byId("amount").value),
     size: Number(byId("size").value),
     chroma: Number(byId("chroma").value),
-    toneCurve: state.toneCurve,
-    seed: state.seed
+    seed: Number(byId("seed").value),
+    toneCurve: state.toneCurve
   };
 }
 
@@ -41,6 +49,7 @@ function updateOutputs() {
   byId("amountValue").textContent = Number(byId("amount").value).toFixed(1) + "%";
   byId("sizeValue").textContent = Number(byId("size").value).toFixed(1) + " px";
   byId("chromaValue").textContent = Math.round(Number(byId("chroma").value)) + "%";
+  byId("seedValue").textContent = String(Math.round(Number(byId("seed").value)));
 }
 
 function explainError(error) {
@@ -48,24 +57,39 @@ function explainError(error) {
   setStatus(error && error.message ? error.message : String(error), true);
 }
 
-async function setTarget() {
-  if (state.busy) return;
-  try {
-    if (state.previewId && state.target) await photoshop.cancelPreview(state.target, state.previewId);
-    state.previewId = null;
-    state.target = photoshop.captureTarget();
-    byId("targetName").textContent = state.target.name;
-    setStatus("目标已设置。现在在干净背景上创建选区并点击“分析选区”。");
-  } catch (error) { explainError(error); }
+async function ensureTarget() {
+  const active = photoshop.getActiveLayerIdentity();
+  if (state.target && active.documentId === state.target.documentId &&
+      (active.layerId === state.target.layerId || active.layerId === state.previewId)) {
+    return;
+  }
+  if (state.previewId && state.target) {
+    await photoshop.cancelPreview(state.target, state.previewId);
+  }
+  state.previewId = null;
+  state.target = photoshop.captureTarget();
+  updateAvailability();
+}
+
+function requestRender(delay = 260) {
+  if (state.renderTimer) clearTimeout(state.renderTimer);
+  state.renderTimer = setTimeout(() => {
+    state.renderTimer = null;
+    render();
+  }, delay);
 }
 
 async function analyze() {
   if (state.busy) return;
-  if (!state.target) return setStatus("请先设置目标图层。", true);
   setBusy(true);
   setStatus("正在分析背景颗粒……");
-  let shouldRender = false;
+  let succeeded = false;
+  let previewWasHidden = false;
   try {
+    if (state.previewId && state.target) {
+      await photoshop.setPreviewVisibility(state.target, state.previewId, false);
+      previewWasHidden = true;
+    }
     const result = await photoshop.analyzeSelection();
     byId("amount").value = result.amount.toFixed(1);
     byId("size").value = result.size.toFixed(1);
@@ -73,93 +97,149 @@ async function analyze() {
     state.toneCurve = result.toneCurve;
     updateOutputs();
     const confidence = result.confidence >= 0.7 ? "高" : result.confidence >= 0.4 ? "中" : "低";
-    const coverage = result.tonalCoverage >= 3 ? "完整明暗响应" : "部分明暗响应";
+    const completeTone = result.tonalCoverage >= 3;
     const resultNode = byId("analysisResult");
-    resultNode.textContent = `样本 ${result.sampleCount.toLocaleString()} px · 置信度${confidence} · ${coverage}`;
+    resultNode.textContent = completeTone
+      ? `已匹配背景颗粒 · 明暗响应完整 · 置信度${confidence}`
+      : `已匹配背景颗粒 · 明暗响应部分使用默认值 · 置信度${confidence}`;
     resultNode.classList.remove("hidden");
-    setStatus("分析完成。可微调参数，然后在画布中检查匹配效果。");
-    shouldRender = byId("autoPreview").checked;
-  } catch (error) { explainError(error); }
-  finally { setBusy(false); }
-  if (shouldRender) await render();
+    setStatus("分析结果已写入参数，正在更新预览……");
+    succeeded = true;
+  } catch (error) {
+    explainError(error);
+  } finally {
+    if (previewWasHidden) {
+      try {
+        await photoshop.setPreviewVisibility(state.target, state.previewId, true);
+      } catch (error) {
+        explainError(error);
+      }
+    }
+    setBusy(false);
+  }
+  if (succeeded) requestRender(0);
 }
 
 async function render() {
-  if (state.busy) return;
-  if (!state.target) return setStatus("请先设置目标图层。", true);
-  const serial = ++state.renderSerial;
-  const oldPreview = state.previewId;
+  if (state.busy) {
+    state.pendingRender = true;
+    return;
+  }
   setBusy(true);
-  setStatus("正在生成画布预览……");
+  setStatus("正在更新预览……");
   try {
-    const newId = await photoshop.renderPreview(state.target, settings(), oldPreview);
-    if (serial === state.renderSerial) state.previewId = newId;
-    setStatus("预览已更新。颗粒层已剪贴到目标图层，背景保持可见。");
+    await ensureTarget();
+    state.previewId = await photoshop.renderPreview(state.target, settings(), state.previewId);
+    setStatus("预览已更新。");
   } catch (error) {
-    // A failed render rolls Photoshop history back, restoring the old preview.
-    state.previewId = oldPreview;
     explainError(error);
-  } finally { setBusy(false); }
+  } finally {
+    setBusy(false);
+    if (state.pendingRender) {
+      state.pendingRender = false;
+      requestRender(0);
+    }
+  }
 }
 
-function scheduleRender() {
+function onControlInput() {
   updateOutputs();
-  if (!byId("autoPreview").checked || !state.target) return;
-  if (state.renderTimer) clearTimeout(state.renderTimer);
-  state.renderTimer = setTimeout(() => {
-    state.renderTimer = null;
-    render();
-  }, 450);
-}
-
-async function randomize() {
-  state.seed = (Math.random() * 0x7fffffff) | 0;
-  setStatus("Seed 已更换。");
-  if (byId("autoPreview").checked) await render();
+  requestRender();
 }
 
 async function cancel() {
-  if (state.busy || !state.previewId) return;
+  if (state.busy) return;
+  if (state.renderTimer) clearTimeout(state.renderTimer);
+  restoreAfterCompare();
   setBusy(true);
   try {
-    await photoshop.cancelPreview(state.target, state.previewId);
+    await state.visibilityQueue;
+    if (state.previewId && state.target) await photoshop.cancelPreview(state.target, state.previewId);
     state.previewId = null;
-    setStatus("预览已删除，目标图层没有被修改。");
-  } catch (error) { explainError(error); }
-  finally { setBusy(false); }
+    state.target = null;
+    setStatus("已取消。");
+  } catch (error) {
+    explainError(error);
+  } finally {
+    setBusy(false);
+  }
 }
 
-async function apply() {
-  if (state.busy) return;
+async function complete() {
+  if (state.busy || !state.previewId) return;
+  if (state.renderTimer) clearTimeout(state.renderTimer);
+  restoreAfterCompare();
   setBusy(true);
   try {
+    await state.visibilityQueue;
     await photoshop.applyPreview(state.target, state.previewId);
     state.previewId = null;
-    setStatus("已应用为独立的 MeiNoise Grain 剪贴图层。");
-  } catch (error) { explainError(error); }
-  finally { setBusy(false); }
+    state.target = null;
+    setStatus("已完成。");
+  } catch (error) {
+    explainError(error);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function setCompareHeld(held) {
+  if (state.compareHeld === held) return;
+  state.compareHeld = held;
+  byId("compare").classList.toggle("held", held);
+  if (!state.previewId || !state.target) return;
+  const target = state.target;
+  const previewId = state.previewId;
+  state.visibilityQueue = state.visibilityQueue
+    .catch(() => {})
+    .then(() => photoshop.setPreviewVisibility(target, previewId, !held))
+    .catch(explainError);
+}
+
+function restoreAfterCompare() {
+  setCompareHeld(false);
+}
+
+function toggleInfo(event) {
+  event.stopPropagation();
+  const popover = byId("infoPopover");
+  const willShow = popover.classList.contains("hidden");
+  popover.classList.toggle("hidden", !willShow);
+  byId("infoButton").setAttribute("aria-expanded", String(willShow));
+}
+
+function closeInfo(event) {
+  if (event && byId("infoPopover").contains(event.target)) return;
+  byId("infoPopover").classList.add("hidden");
+  byId("infoButton").setAttribute("aria-expanded", "false");
 }
 
 function wirePanel() {
   if (state.wired) return;
   state.wired = true;
-  byId("setTarget").addEventListener("click", setTarget);
   byId("analyze").addEventListener("click", analyze);
-  byId("preview").addEventListener("click", render);
-  byId("randomize").addEventListener("click", randomize);
+  byId("infoButton").addEventListener("click", toggleInfo);
+  document.addEventListener("click", closeInfo);
   byId("cancel").addEventListener("click", cancel);
-  byId("apply").addEventListener("click", apply);
-  for (const id of ["amount", "size", "chroma"]) {
-    byId(id).addEventListener("input", updateOutputs);
-    byId(id).addEventListener("change", scheduleRender);
+  byId("complete").addEventListener("click", complete);
+  for (const id of ["amount", "size", "chroma", "seed"]) {
+    byId(id).addEventListener("input", onControlInput);
+    byId(id).addEventListener("change", onControlInput);
   }
+
+  const compare = byId("compare");
+  compare.addEventListener("mousedown", () => setCompareHeld(true));
+  compare.addEventListener("mouseup", restoreAfterCompare);
+  compare.addEventListener("mouseleave", restoreAfterCompare);
+  compare.addEventListener("keydown", (event) => {
+    if (event.key === " " || event.key === "Space" || event.key === "Enter") setCompareHeld(true);
+  });
+  compare.addEventListener("keyup", restoreAfterCompare);
+  window.addEventListener("mouseup", restoreAfterCompare);
+  window.addEventListener("blur", restoreAfterCompare);
   updateOutputs();
+  updateAvailability();
 }
 
-entrypoints.setup({
-  panels: {
-    meinoisePanel: {
-      show() { wirePanel(); }
-    }
-  }
-});
+wirePanel();
+entrypoints.setup({panels: {meinoisePanel: {show() { wirePanel(); }}}});

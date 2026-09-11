@@ -4,35 +4,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="styles.css">
-  <script src="src/main.js"></script>
 </head>
 <body>
   <main>
     <header>
       <h1>MeiNoise</h1>
-      <p>从背景选区匹配目标图层的颗粒。</p>
+      <p>匹配原图颗粒，并作用于当前图层。</p>
     </header>
 
-    <section class="card">
-      <div class="step">
-        <span class="badge">1</span>
-        <div>
-          <strong>目标图层</strong>
-          <div id="targetName" class="muted">尚未设置</div>
-        </div>
+    <section class="analysis-card">
+      <div class="analysis-title">
+        <button id="analyze" class="button secondary">分析背景选区（可选）</button>
+        <button id="infoButton" class="info-button" aria-label="背景选区说明" aria-expanded="false">ⓘ</button>
       </div>
-      <sp-button id="setTarget" variant="secondary">使用当前图层</sp-button>
-    </section>
-
-    <section class="card">
-      <div class="step">
-        <span class="badge">2</span>
-        <div>
-          <strong>背景样本</strong>
-          <div class="muted">在干净背景上框选区域，然后分析</div>
-        </div>
+      <p class="hint">包含暗/中/亮样本，可匹配非均质明暗响应。</p>
+      <div id="infoPopover" class="info-popover hidden" role="note">
+        <strong>如何选择背景样本</strong>
+        <ol>
+          <li>优先选择靠近贴入图层和融合边缘的区域。</li>
+          <li>选择低纹理、清晰度和处理状态相同的原图背景。</li>
+          <li>避开头发、树叶、文字、锐利边缘和密集纹理。</li>
+          <li>样本面积越大，分析通常越稳定。</li>
+          <li>可按住 Shift 添加暗部、中间调和亮部样本。</li>
+        </ol>
       </div>
-      <sp-button id="analyze" variant="secondary">分析选区</sp-button>
       <div id="analysisResult" class="analysis hidden"></div>
     </section>
 
@@ -49,20 +44,20 @@
         <span>Chroma <output id="chromaValue">15%</output></span>
         <input id="chroma" type="range" min="0" max="100" step="1" value="15">
       </label>
+      <label>
+        <span>Seed <output id="seedValue">37</output></span>
+        <input id="seed" type="range" min="0" max="255" step="1" value="37">
+      </label>
     </section>
 
-    <div class="row">
-      <sp-button id="randomize" variant="secondary">Randomize</sp-button>
-      <label class="toggle"><input id="autoPreview" type="checkbox" checked> 自动预览</label>
+    <button id="compare" class="button compare" disabled>长按对比</button>
+    <div class="row actions">
+      <button id="cancel" class="button secondary">取消</button>
+      <button id="complete" class="button primary" disabled>完成</button>
     </div>
 
-    <sp-button id="preview" variant="primary">更新预览</sp-button>
-    <div class="row bottom">
-      <sp-button id="cancel" variant="secondary">取消</sp-button>
-      <sp-button id="apply" variant="cta">应用</sp-button>
-    </div>
-
-    <footer id="status" aria-live="polite">请选择要加颗粒的图层。</footer>
+    <footer id="status" aria-live="polite">可直接调节参数，或先分析背景选区。</footer>
   </main>
+  <script src="src/main.js"></script>
 </body>
 </html>

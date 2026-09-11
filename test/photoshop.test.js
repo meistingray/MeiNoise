@@ -108,6 +108,7 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
 
   const captured = adapter.captureTarget();
   assert.equal(captured.layerId, fixture.target.id);
+  assert.equal(adapter.getActiveLayerIdentity().layerId, fixture.target.id);
   const analysis = await adapter.analyzeSelection();
   assert.ok(analysis.sampleCount >= 128);
 
@@ -127,4 +128,9 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   assert.equal(fixture.calls.history[0][0], "suspend");
   assert.deepEqual(fixture.calls.history.at(-1).slice(0, 1), ["resume"]);
   assert.equal(fixture.calls.history.at(-1)[2], true);
+
+  await adapter.setPreviewVisibility(captured, previewId, false);
+  assert.equal(preview.visible, false);
+  await adapter.setPreviewVisibility(captured, previewId, true);
+  assert.equal(preview.visible, true);
 });
