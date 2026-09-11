@@ -7,8 +7,9 @@ const root = path.join(__dirname, "..");
 
 test("panel loads its controller after the interactive DOM", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const scriptPosition = html.indexOf('<script src="src/main.js"></script>');
+  const scriptPosition = html.indexOf('require("./src/main.js")');
   assert.ok(scriptPosition > html.indexOf("</main>"));
+  assert.match(html, /MeiNoise 启动失败/);
 });
 
 test("compact panel exposes every agreed interaction", () => {

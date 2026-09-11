@@ -1,5 +1,12 @@
 const {entrypoints} = require("uxp");
-const photoshop = require("./photoshop.js");
+
+// Keep the panel controls usable even if Photoshop rejects a host API while
+// loading the adapter. The adapter is loaded only when an operation needs it.
+let photoshopAdapter = null;
+function photoshop() {
+  if (!photoshopAdapter) photoshopAdapter = require("./photoshop.js");
+  return photoshopAdapter;
+}
 
 const DEFAULT_TONE_CURVE = [1.18, 1, 0.72];
 const state = {
@@ -58,16 +65,17 @@ function explainError(error) {
 }
 
 async function ensureTarget() {
-  const active = photoshop.getActiveLayerIdentity();
+  const ps = photoshop();
+  const active = ps.getActiveLayerIdentity();
   if (state.target && active.documentId === state.target.documentId &&
       (active.layerId === state.target.layerId || active.layerId === state.previewId)) {
     return;
   }
   if (state.previewId && state.target) {
-    await photoshop.cancelPreview(state.target, state.previewId);
+    await ps.cancelPreview(state.target, state.previewId);
   }
   state.previewId = null;
-  state.target = photoshop.captureTarget();
+  state.target = ps.captureTarget();
   updateAvailability();
 }
 
@@ -86,11 +94,12 @@ async function analyze() {
   let succeeded = false;
   let previewWasHidden = false;
   try {
+    const ps = photoshop();
     if (state.previewId && state.target) {
-      await photoshop.setPreviewVisibility(state.target, state.previewId, false);
+      await ps.setPreviewVisibility(state.target, state.previewId, false);
       previewWasHidden = true;
     }
-    const result = await photoshop.analyzeSelection();
+    const result = await ps.analyzeSelection();
     byId("amount").value = result.amount.toFixed(1);
     byId("size").value = result.size.toFixed(1);
     byId("chroma").value = Math.round(result.chroma);
@@ -110,7 +119,7 @@ async function analyze() {
   } finally {
     if (previewWasHidden) {
       try {
-        await photoshop.setPreviewVisibility(state.target, state.previewId, true);
+        await photoshop().setPreviewVisibility(state.target, state.previewId, true);
       } catch (error) {
         explainError(error);
       }
@@ -129,7 +138,7 @@ async function render() {
   setStatus("正在更新预览……");
   try {
     await ensureTarget();
-    state.previewId = await photoshop.renderPreview(state.target, settings(), state.previewId);
+    state.previewId = await photoshop().renderPreview(state.target, settings(), state.previewId);
     setStatus("预览已更新。");
   } catch (error) {
     explainError(error);
@@ -154,7 +163,7 @@ async function cancel() {
   setBusy(true);
   try {
     await state.visibilityQueue;
-    if (state.previewId && state.target) await photoshop.cancelPreview(state.target, state.previewId);
+    if (state.previewId && state.target) await photoshop().cancelPreview(state.target, state.previewId);
     state.previewId = null;
     state.target = null;
     setStatus("已取消。");
@@ -172,7 +181,7 @@ async function complete() {
   setBusy(true);
   try {
     await state.visibilityQueue;
-    await photoshop.applyPreview(state.target, state.previewId);
+    await photoshop().applyPreview(state.target, state.previewId);
     state.previewId = null;
     state.target = null;
     setStatus("已完成。");
@@ -192,7 +201,7 @@ function setCompareHeld(held) {
   const previewId = state.previewId;
   state.visibilityQueue = state.visibilityQueue
     .catch(() => {})
-    .then(() => photoshop.setPreviewVisibility(target, previewId, !held))
+    .then(() => photoshop().setPreviewVisibility(target, previewId, !held))
     .catch(explainError);
 }
 

@@ -11,53 +11,65 @@
       <h1>MeiNoise</h1>
       <p>匹配原图颗粒，并作用于当前图层。</p>
     </header>
+    <div id="bootError" class="boot-error hidden"></div>
 
-    <section class="analysis-card">
-      <div class="analysis-title">
-        <button id="analyze" class="button secondary">分析背景选区（可选）</button>
-        <button id="infoButton" class="info-button" aria-label="背景选区说明" aria-expanded="false">ⓘ</button>
-      </div>
-      <p class="hint">包含暗/中/亮样本，可匹配非均质明暗响应。</p>
-      <div id="infoPopover" class="info-popover hidden" role="note">
-        <strong>如何选择背景样本</strong>
-        <ol>
-          <li>优先选择靠近贴入图层和融合边缘的区域。</li>
-          <li>选择低纹理、清晰度和处理状态相同的原图背景。</li>
-          <li>避开头发、树叶、文字、锐利边缘和密集纹理。</li>
-          <li>样本面积越大，分析通常越稳定。</li>
-          <li>可按住 Shift 添加暗部、中间调和亮部样本。</li>
-        </ol>
-      </div>
-      <div id="analysisResult" class="analysis hidden"></div>
-    </section>
+    <div class="scroll-area">
+      <section class="analysis-card">
+        <div class="analysis-title">
+          <button id="analyze" class="button secondary">分析背景选区（可选）</button>
+          <button id="infoButton" class="info-button" aria-label="背景选区说明" aria-expanded="false">ⓘ</button>
+        </div>
+        <p class="hint">包含暗/中/亮样本，可匹配非均质明暗响应。</p>
+        <div id="infoPopover" class="info-popover hidden" role="note">
+          <strong>如何选择背景样本</strong>
+          <ol>
+            <li>优先选择靠近贴入图层和融合边缘的区域。</li>
+            <li>选择低纹理、清晰度和处理状态相同的原图背景。</li>
+            <li>避开头发、树叶、文字、锐利边缘和密集纹理。</li>
+            <li>样本面积越大，分析通常越稳定。</li>
+            <li>可按住 Shift 添加暗部、中间调和亮部样本。</li>
+          </ol>
+        </div>
+        <div id="analysisResult" class="analysis hidden"></div>
+      </section>
 
-    <section class="controls">
-      <label>
-        <span>Amount <output id="amountValue">2.0%</output></span>
-        <input id="amount" type="range" min="0" max="12" step="0.1" value="2">
-      </label>
-      <label>
-        <span>Size <output id="sizeValue">1.0 px</output></span>
-        <input id="size" type="range" min="0.5" max="6" step="0.1" value="1">
-      </label>
-      <label>
-        <span>Chroma <output id="chromaValue">15%</output></span>
-        <input id="chroma" type="range" min="0" max="100" step="1" value="15">
-      </label>
-      <label>
-        <span>Seed <output id="seedValue">37</output></span>
-        <input id="seed" type="range" min="0" max="255" step="1" value="37">
-      </label>
-    </section>
-
-    <button id="compare" class="button compare" disabled>长按对比</button>
-    <div class="row actions">
-      <button id="cancel" class="button secondary">取消</button>
-      <button id="complete" class="button primary" disabled>完成</button>
+      <section class="controls">
+        <label>
+          <span>Amount <output id="amountValue">2.0%</output></span>
+          <input id="amount" type="range" min="0" max="12" step="0.1" value="2">
+        </label>
+        <label>
+          <span>Size <output id="sizeValue">1.0 px</output></span>
+          <input id="size" type="range" min="0.5" max="6" step="0.1" value="1">
+        </label>
+        <label>
+          <span>Chroma <output id="chromaValue">15%</output></span>
+          <input id="chroma" type="range" min="0" max="100" step="1" value="15">
+        </label>
+        <label>
+          <span>Seed <output id="seedValue">37</output></span>
+          <input id="seed" type="range" min="0" max="255" step="1" value="37">
+        </label>
+      </section>
     </div>
 
-    <footer id="status" aria-live="polite">可直接调节参数，或先分析背景选区。</footer>
+    <div class="fixed-controls">
+      <button id="compare" class="button compare" disabled>长按对比</button>
+      <div class="row actions">
+        <button id="cancel" class="button secondary">取消</button>
+        <button id="complete" class="button primary" disabled>完成</button>
+      </div>
+      <footer id="status" aria-live="polite">可直接调节参数，或先分析背景选区。</footer>
+    </div>
   </main>
-  <script src="src/main.js"></script>
+  <script>
+    try {
+      require("./src/main.js");
+    } catch (error) {
+      const node = document.getElementById("bootError");
+      node.textContent = "MeiNoise 启动失败：" + (error && error.message ? error.message : String(error));
+      node.classList.remove("hidden");
+    }
+  </script>
 </body>
 </html>
