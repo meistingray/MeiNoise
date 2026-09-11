@@ -35,6 +35,13 @@ function activeDocument() {
   return app.activeDocument;
 }
 
+function documentById(documentId) {
+  for (const document of app.documents) {
+    if (document.id === documentId) return document;
+  }
+  return null;
+}
+
 function validateDocument(document) {
   const documentModes = constants.DocumentMode || {};
   const mode = document.mode;
@@ -136,7 +143,7 @@ async function analyzeSelection() {
 async function deleteLayerById(document, layerId) {
   if (!layerId) return;
   const layer = findLayer(document.layers, layerId);
-  if (layer) layer.delete();
+  if (layer) await layer.delete();
 }
 
 async function renderPreview(target, settings, previousPreviewId, onProgress) {
@@ -239,8 +246,11 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
 
 async function cancelPreview(target, previewId) {
   if (!previewId) return;
-  const resolved = resolveTarget(target);
-  await core.executeAsModal(async () => deleteLayerById(resolved.document, previewId), {commandName: "Cancel MeiNoise"});
+  // Cleanup must not depend on the original target still existing. This lets a
+  // deleted target be replaced by a newly selected layer without trapping the UI.
+  const document = target && documentById(target.documentId);
+  if (!document) return;
+  await core.executeAsModal(async () => deleteLayerById(document, previewId), {commandName: "Cancel MeiNoise"});
 }
 
 async function applyPreview(target, previewId) {

@@ -112,9 +112,6 @@ input[type="range"] { width: 100%; margin: 0; }
 .button:disabled { opacity: .42; }
 .button.primary { border-color: var(--primary); background: var(--primary); color: white; }
 .button.primary:hover:not(:disabled) { background: var(--primary-hover); }
-.button.compare { width: 100%; }
-.button.compare.held { background: rgba(255,255,255,.2); }
-
 .row { display: flex; align-items: center; gap: 9px; }
 .row > * { flex: 1; }
 .actions { margin-top: 8px; }

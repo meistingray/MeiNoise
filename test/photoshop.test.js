@@ -144,6 +144,10 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   assert.equal(preview.visible, false);
   await adapter.setPreviewVisibility(captured, previewId, true);
   assert.equal(preview.visible, true);
+
+  fixture.document.layers = [preview];
+  await assert.doesNotReject(() => adapter.cancelPreview(captured, previewId));
+  assert.equal(preview.deleted, true);
 });
 
 test("Photoshop adapter accepts UXP 8-bit and 16-bit enum values", () => {

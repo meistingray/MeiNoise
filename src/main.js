@@ -16,8 +16,6 @@ const state = {
   busy: false,
   pendingRender: false,
   renderTimer: null,
-  compareHeld: false,
-  visibilityQueue: Promise.resolve(),
   wired: false
 };
 
@@ -31,7 +29,6 @@ function setStatus(message, isError = false) {
 
 function updateAvailability() {
   const hasPreview = Boolean(state.previewId);
-  byId("compare").disabled = !hasPreview || state.busy;
   byId("complete").disabled = !hasPreview || state.busy;
   byId("analyze").disabled = state.busy;
   byId("cancel").disabled = state.busy;
@@ -67,14 +64,30 @@ function explainError(error) {
 async function ensureTarget() {
   const ps = photoshop();
   const active = ps.getActiveLayerIdentity();
+  let targetIsUsable = false;
   if (state.target && active.documentId === state.target.documentId &&
       (active.layerId === state.target.layerId || active.layerId === state.previewId)) {
-    return;
+    try {
+      ps.resolveTarget(state.target);
+      targetIsUsable = true;
+    } catch (error) {
+      console.warn("MeiNoise target is no longer available; retargeting.", error);
+    }
   }
+  if (targetIsUsable) return;
+
   if (state.previewId && state.target) {
-    await ps.cancelPreview(state.target, state.previewId);
+    try {
+      await ps.cancelPreview(state.target, state.previewId);
+    } catch (error) {
+      // A stale preview must never prevent the user from choosing a new layer.
+      console.warn("Unable to remove stale MeiNoise preview.", error);
+    }
   }
   state.previewId = null;
+  state.target = null;
+  state.toneCurve = DEFAULT_TONE_CURVE.slice();
+  byId("analysisResult").classList.add("hidden");
   state.target = ps.captureTarget();
   updateAvailability();
 }
@@ -95,6 +108,8 @@ async function analyze() {
   let previewWasHidden = false;
   try {
     const ps = photoshop();
+    // Locks the currently selected layer before the background selection is read.
+    await ensureTarget();
     if (state.previewId && state.target) {
       await ps.setPreviewVisibility(state.target, state.previewId, false);
       previewWasHidden = true;
@@ -159,10 +174,8 @@ function onControlInput() {
 async function cancel() {
   if (state.busy) return;
   if (state.renderTimer) clearTimeout(state.renderTimer);
-  restoreAfterCompare();
   setBusy(true);
   try {
-    await state.visibilityQueue;
     if (state.previewId && state.target) await photoshop().cancelPreview(state.target, state.previewId);
     state.previewId = null;
     state.target = null;
@@ -177,10 +190,8 @@ async function cancel() {
 async function complete() {
   if (state.busy || !state.previewId) return;
   if (state.renderTimer) clearTimeout(state.renderTimer);
-  restoreAfterCompare();
   setBusy(true);
   try {
-    await state.visibilityQueue;
     await photoshop().applyPreview(state.target, state.previewId);
     state.previewId = null;
     state.target = null;
@@ -190,23 +201,6 @@ async function complete() {
   } finally {
     setBusy(false);
   }
-}
-
-function setCompareHeld(held) {
-  if (state.compareHeld === held) return;
-  state.compareHeld = held;
-  byId("compare").classList.toggle("held", held);
-  if (!state.previewId || !state.target) return;
-  const target = state.target;
-  const previewId = state.previewId;
-  state.visibilityQueue = state.visibilityQueue
-    .catch(() => {})
-    .then(() => photoshop().setPreviewVisibility(target, previewId, !held))
-    .catch(explainError);
-}
-
-function restoreAfterCompare() {
-  setCompareHeld(false);
 }
 
 function toggleInfo(event) {
@@ -236,16 +230,6 @@ function wirePanel() {
     byId(id).addEventListener("change", onControlInput);
   }
 
-  const compare = byId("compare");
-  compare.addEventListener("mousedown", () => setCompareHeld(true));
-  compare.addEventListener("mouseup", restoreAfterCompare);
-  compare.addEventListener("mouseleave", restoreAfterCompare);
-  compare.addEventListener("keydown", (event) => {
-    if (event.key === " " || event.key === "Space" || event.key === "Enter") setCompareHeld(true);
-  });
-  compare.addEventListener("keyup", restoreAfterCompare);
-  window.addEventListener("mouseup", restoreAfterCompare);
-  window.addEventListener("blur", restoreAfterCompare);
   updateOutputs();
   updateAvailability();
   const bootError = byId("bootError");
