@@ -26,6 +26,22 @@ MeiNoise 是一个开源 Photoshop UXP 插件。它从背景选区估算颗粒�
 
 插件不依赖 Creative Cloud Marketplace，也没有运行时 npm 依赖。
 
+### 命令行打包与永久安装（Windows）
+
+生成 CCX：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
+```
+
+使用 Adobe Unified Plugin Installer Agent 永久安装：
+
+```powershell
+& "C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe" /install "E:\MeiNoise\dist\MeiNoise.ccx"
+```
+
+安装完成后重新启动 Photoshop，然后从 **插件（Plugins）> MeiNoise** 打开面板。
+
 ## 使用方法
 
 1. 在图层面板选择要合成进去的图层，点击 **使用当前图层**。
