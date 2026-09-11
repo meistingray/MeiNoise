@@ -22,6 +22,7 @@ New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 $runtimeFiles = @(
     (Join-Path $projectRoot "manifest.json"),
     (Join-Path $projectRoot "index.html"),
+    (Join-Path $projectRoot "main.js"),
     (Join-Path $projectRoot "styles.css"),
     (Join-Path $projectRoot "src")
 )

@@ -248,6 +248,8 @@ function wirePanel() {
   window.addEventListener("blur", restoreAfterCompare);
   updateOutputs();
   updateAvailability();
+  const bootError = byId("bootError");
+  if (bootError) bootError.classList.add("hidden");
 }
 
 wirePanel();

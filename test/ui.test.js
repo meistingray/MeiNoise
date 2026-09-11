@@ -5,11 +5,17 @@ const path = require("node:path");
 
 const root = path.join(__dirname, "..");
 
-test("panel loads its controller after the interactive DOM", () => {
+test("panel loads a root external controller from the head", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const scriptPosition = html.indexOf('require("./src/main.js")');
-  assert.ok(scriptPosition > html.indexOf("</main>"));
-  assert.match(html, /MeiNoise 启动失败/);
+  const scriptPosition = html.indexOf('<script src="main.js"></script>');
+  assert.ok(scriptPosition > html.indexOf("<head>"));
+  assert.ok(scriptPosition < html.indexOf("</head>"));
+  assert.doesNotMatch(html, /<script>\s*try/);
+  assert.match(html, /控制器未启动/);
+
+  const bootstrap = fs.readFileSync(path.join(root, "main.js"), "utf8");
+  assert.match(bootstrap, /require\("\.\/src\/main\.js"\)/);
+  assert.match(bootstrap, /MeiNoise 启动失败/);
 });
 
 test("compact panel exposes every agreed interaction", () => {
