@@ -1,5 +1,5 @@
 const {app, core, imaging, constants, action} = require("photoshop");
-const {analyzeGrain, generateGrainBand, clamp} = require("./math.js");
+const {analyzeGrain, combineGrainAnalyses, generateGrainBand, clamp} = require("./math.js");
 
 const GRAIN_PREFIX = "MeiNoise - ";
 const MAX_ANALYSIS_EDGE = 512;
@@ -124,6 +124,89 @@ function resolveTarget(target) {
   return {document, layer, bounds: normalizeBounds(layer.boundsNoEffects || layer.bounds, document)};
 }
 
+function autoSampleBounds(targetBounds, document) {
+  const documentWidth = Math.floor(numberValue(document.width));
+  const documentHeight = Math.floor(numberValue(document.height));
+  const width = targetBounds.right - targetBounds.left;
+  const height = targetBounds.bottom - targetBounds.top;
+  const shortEdge = Math.max(1, Math.min(width, height));
+  const patch = Math.round(clamp(shortEdge * 0.18, 24, 128));
+  const gaps = shortEdge < 64 ? [2, Math.max(6, Math.round(shortEdge * 0.18))] :
+    [Math.round(clamp(shortEdge * 0.025, 3, 18))];
+  const positions = [0.18, 0.5, 0.82];
+  const result = [];
+  const seen = new Set();
+
+  function add(left, top, right, bottom) {
+    const bounds = {
+      left: Math.max(0, Math.round(left)),
+      top: Math.max(0, Math.round(top)),
+      right: Math.min(documentWidth, Math.round(right)),
+      bottom: Math.min(documentHeight, Math.round(bottom))
+    };
+    if (bounds.right - bounds.left < 8 || bounds.bottom - bounds.top < 8) return;
+    const key = `${bounds.left}:${bounds.top}:${bounds.right}:${bounds.bottom}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(bounds);
+    }
+  }
+
+  for (const gap of gaps) {
+    for (const position of positions) {
+      const centerX = targetBounds.left + width * position;
+      const centerY = targetBounds.top + height * position;
+      add(centerX - patch / 2, targetBounds.top - gap - patch, centerX + patch / 2, targetBounds.top - gap);
+      add(centerX - patch / 2, targetBounds.bottom + gap, centerX + patch / 2, targetBounds.bottom + gap + patch);
+      add(targetBounds.left - gap - patch, centerY - patch / 2, targetBounds.left - gap, centerY + patch / 2);
+      add(targetBounds.right + gap, centerY - patch / 2, targetBounds.right + gap + patch, centerY + patch / 2);
+    }
+  }
+  return result.slice(0, 24);
+}
+
+async function analyzeAroundTarget(target) {
+  const resolved = resolveTarget(target);
+  const candidates = autoSampleBounds(resolved.bounds, resolved.document);
+  if (!candidates.length) {
+    throw new Error("目标图层周围没有可采样区域。请点击“手动”框选背景样本。");
+  }
+  return core.executeAsModal(async () => {
+    const analyses = [];
+    for (const bounds of candidates) {
+      let pixels;
+      try {
+        // No layerID: sample the visible document composite surrounding the
+        // target. Patches stay at native resolution so fine grain is preserved.
+        pixels = await imaging.getPixels({
+          documentID: resolved.document.id,
+          sourceBounds: bounds,
+          componentSize: 8,
+          colorSpace: "RGB",
+          applyAlpha: true
+        });
+        const data = await pixels.imageData.getData({chunky: true});
+        try {
+          analyses.push(analyzeGrain({
+            data,
+            width: pixels.imageData.width,
+            height: pixels.imageData.height,
+            components: pixels.imageData.components,
+            componentSize: pixels.imageData.componentSize
+          }));
+        } catch (error) {
+          // Edges and detailed patches are expected; other patches can carry
+          // the estimate. Only fail after all candidates have been considered.
+          if (!error || !String(error.message || error).includes("有效样本不足")) throw error;
+        }
+      } finally {
+        if (pixels && pixels.imageData) pixels.imageData.dispose();
+      }
+    }
+    return combineGrainAnalyses(analyses);
+  }, {commandName: "Analyze MeiNoise surrounding background"});
+}
+
 async function analyzeSelection() {
   return core.executeAsModal(async () => {
     const document = activeDocument();
@@ -240,6 +323,7 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
             originY: actualTop,
             amount: clamp(settings.amount, 0, 12),
             size: clamp(settings.size, 0.5, 6),
+            structure: clamp(settings.structure === undefined ? 0.65 : settings.structure, 0, 1),
             chroma: clamp(settings.chroma, 0, 100),
             seed: settings.seed | 0,
             toneCurve: settings.toneCurve
@@ -312,6 +396,8 @@ module.exports = {
   activateBackgroundSelectionTool,
   hasBackgroundSelection,
   listenForBackgroundSelection,
+  autoSampleBounds,
+  analyzeAroundTarget,
   analyzeSelection,
   renderPreview,
   cancelPreview,

@@ -19,13 +19,13 @@ function createFixture() {
   const target = {
     id: 10,
     name: "Pasted subject",
-    boundsNoEffects: {left: 2, top: 3, right: 10, bottom: 9},
+    boundsNoEffects: {left: 40, top: 30, right: 88, bottom: 78},
     layers: null
   };
   const document = {
     id: 1,
-    width: 32,
-    height: 24,
+    width: 128,
+    height: 112,
     mode: "RGBColorMode",
     bitsPerChannel: "bitDepth8",
     colorProfileName: "sRGB IEC61966-2.1",
@@ -144,6 +144,9 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   assert.equal(adapter.hasBackgroundSelection(fixture.document.id), true);
   const analysis = await adapter.analyzeSelection();
   assert.ok(analysis.sampleCount >= 128);
+  const automatic = await adapter.analyzeAroundTarget(captured);
+  assert.ok(automatic.patchCount >= 1);
+  assert.ok(automatic.candidateCount >= automatic.patchCount);
   assert.equal(fixture.calls.modalDepth, 0);
 
   const previewId = await adapter.renderPreview(captured, {
@@ -172,6 +175,33 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   fixture.document.layers = [preview];
   await assert.doesNotReject(() => adapter.cancelPreview(captured, previewId));
   assert.equal(preview.deleted, true);
+});
+
+test("automatic sample planning stays native-sized and bounded", () => {
+  const fixture = createFixture();
+  const originalLoad = Module._load;
+  Module._load = function(request, parent, isMain) {
+    if (request === "photoshop") return fixture.photoshopMock;
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  let adapter;
+  try {
+    delete require.cache[require.resolve("../src/photoshop.js")];
+    adapter = require("../src/photoshop.js");
+  } finally {
+    Module._load = originalLoad;
+  }
+  const bounds = adapter.autoSampleBounds({left: 3000, top: 2000, right: 9000, bottom: 7000}, {width: 12000, height: 9000});
+  assert.ok(bounds.length > 0 && bounds.length <= 24);
+  for (const patch of bounds) {
+    assert.ok(patch.right - patch.left <= 128);
+    assert.ok(patch.bottom - patch.top <= 128);
+    assert.ok(patch.left >= 0 && patch.top >= 0 && patch.right <= 12000 && patch.bottom <= 9000);
+  }
+
+  const small = adapter.autoSampleBounds({left: 90, top: 90, right: 110, bottom: 110}, {width: 200, height: 200});
+  assert.ok(small.length > 12, "small targets should search both near and farther rings");
+  assert.deepEqual(adapter.autoSampleBounds({left: 0, top: 0, right: 200, bottom: 200}, {width: 200, height: 200}), []);
 });
 
 test("Photoshop adapter accepts UXP 8-bit and 16-bit enum values", () => {

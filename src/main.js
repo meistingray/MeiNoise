@@ -1,4 +1,4 @@
-const {entrypoints, versions} = require("uxp");
+const {entrypoints, versions, shell} = require("uxp");
 
 // Keep the panel controls usable even if Photoshop rejects a host API while
 // loading the adapter. The adapter is loaded only when an operation needs it.
@@ -9,14 +9,16 @@ function photoshop() {
 }
 
 const DEFAULT_TONE_CURVE = [1.18, 1, 0.72];
+const DEFAULT_STRUCTURE = 0.65;
 const state = {
   target: null,
   previewId: null,
   toneCurve: DEFAULT_TONE_CURVE.slice(),
+  structure: DEFAULT_STRUCTURE,
   busy: false,
   pendingRender: false,
   renderTimer: null,
-  awaitingBackgroundSelection: false,
+  awaitingManualSelection: false,
   wired: false
 };
 
@@ -29,7 +31,8 @@ function setStatus(message, isError = false) {
 }
 
 function updateAvailability() {
-  byId("analyze").disabled = state.busy || state.awaitingBackgroundSelection;
+  byId("analyze").disabled = state.busy || state.awaitingManualSelection;
+  byId("manualAnalyze").disabled = state.busy || state.awaitingManualSelection;
 }
 
 function setBusy(busy) {
@@ -43,7 +46,8 @@ function settings() {
     size: Number(byId("size").value),
     chroma: Number(byId("chroma").value),
     seed: Number(byId("seed").value),
-    toneCurve: state.toneCurve
+    toneCurve: state.toneCurve,
+    structure: state.structure
   };
 }
 
@@ -59,23 +63,23 @@ function explainError(error) {
   setStatus(error && error.message ? error.message : String(error), true);
 }
 
-function setBackgroundSelectionStage(awaiting) {
-  state.awaitingBackgroundSelection = awaiting;
-  byId("analyze").textContent = awaiting ? "框选后自动分析…" : "选择背景样本";
-  byId("analyze").disabled = state.busy || awaiting;
+function setManualSelectionStage(awaiting) {
+  state.awaitingManualSelection = awaiting;
+  byId("manualAnalyze").textContent = awaiting ? "采集中…" : "手动采集样本";
   byId("analysisHint").textContent = awaiting
-    ? "请直接在画面中框选背景，松开鼠标后会自动分析。"
-    : "用于匹配非均质明暗响应；不分析也可直接调节。";
+    ? "请在画面中框选干净背景；松开鼠标后会立即分析并生成。"
+    : "自动匹配周边背景并立即生成；也可手动框选样本。";
+  updateAvailability();
 }
 
 function onBackgroundSelectionChanged() {
-  if (!state.awaitingBackgroundSelection || state.busy || !state.target) return;
+  if (!state.awaitingManualSelection || state.busy || !state.target) return;
   try {
     if (!photoshop().hasBackgroundSelection(state.target.documentId)) return;
-    setBackgroundSelectionStage(false);
-    analyze();
+    setManualSelectionStage(false);
+    analyze(true);
   } catch (error) {
-    setBackgroundSelectionStage(false);
+    setManualSelectionStage(false);
     explainError(error);
   }
 }
@@ -99,24 +103,25 @@ async function ensureTarget() {
   state.previewId = null;
   state.target = null;
   state.toneCurve = DEFAULT_TONE_CURVE.slice();
-  setBackgroundSelectionStage(false);
+  state.structure = DEFAULT_STRUCTURE;
+  setManualSelectionStage(false);
   byId("analysisResult").classList.add("hidden");
   state.target = ps.captureTarget();
   updateAvailability();
 }
 
-async function beginBackgroundSelection() {
-  if (state.busy) return;
+async function beginManualSelection() {
+  if (state.busy || state.awaitingManualSelection) return;
   setBusy(true);
-  setStatus("正在准备背景选区……");
+  setStatus("正在准备手动背景选区……");
   try {
     await ensureTarget();
     await photoshop().listenForBackgroundSelection(onBackgroundSelectionChanged);
     await photoshop().activateBackgroundSelectionTool();
-    setBackgroundSelectionStage(true);
-    setStatus("请框选靠近目标的干净背景；松开鼠标后自动分析。");
+    setManualSelectionStage(true);
+    setStatus("请框选干净背景；松开鼠标后会自动生成噪点。");
   } catch (error) {
-    setBackgroundSelectionStage(false);
+    setManualSelectionStage(false);
     explainError(error);
   } finally {
     setBusy(false);
@@ -131,38 +136,37 @@ function requestRender(delay = 260) {
   }, delay);
 }
 
-async function analyze() {
+async function analyze(useSelection = false) {
   if (state.busy) return;
   setBusy(true);
-  setStatus("正在分析背景颗粒……");
+  setStatus(useSelection ? "正在分析手动背景样本……" : "正在自动匹配并生成噪点……");
   let succeeded = false;
   let previewWasHidden = false;
   try {
     const ps = photoshop();
-    // Locks the currently selected layer before the background selection is read.
     await ensureTarget();
     if (state.previewId && state.target) {
       await ps.setPreviewVisibility(state.target, state.previewId, false);
       previewWasHidden = true;
     }
-    const result = await ps.analyzeSelection();
+    const result = useSelection ? await ps.analyzeSelection() : await ps.analyzeAroundTarget(state.target);
     byId("amount").value = result.amount.toFixed(1);
     byId("size").value = result.size.toFixed(1);
     byId("chroma").value = Math.round(result.chroma);
     state.toneCurve = result.toneCurve;
+    state.structure = result.structure;
     updateOutputs();
     const confidence = result.confidence >= 0.7 ? "高" : result.confidence >= 0.4 ? "中" : "低";
     const completeTone = result.tonalCoverage >= 3;
     const resultNode = byId("analysisResult");
+    const source = useSelection ? "选区" : `${result.patchCount || 1} 个周边样本`;
     resultNode.textContent = completeTone
-      ? `已匹配背景颗粒 · 明暗响应完整 · 置信度${confidence}`
-      : `已匹配背景颗粒 · 明暗响应部分使用默认值 · 置信度${confidence}`;
+      ? `已从${source}匹配颗粒 · 明暗响应完整 · 置信度${confidence}`
+      : `已从${source}匹配颗粒 · 明暗响应部分使用默认值 · 置信度${confidence}`;
     resultNode.classList.remove("hidden");
-    setBackgroundSelectionStage(false);
-    setStatus("分析结果已写入参数，正在更新预览……");
+    setStatus("噪点已匹配，正在生成图层……");
     succeeded = true;
   } catch (error) {
-    setBackgroundSelectionStage(false);
     explainError(error);
   } finally {
     if (previewWasHidden) {
@@ -225,12 +229,24 @@ function closeInfo(event) {
   byId("copyrightButton").setAttribute("aria-expanded", "false");
 }
 
+async function openCopyrightSite(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    await shell.openExternal("https://www.kicity.com");
+  } catch (error) {
+    explainError(error);
+  }
+}
+
 function wirePanel() {
   if (state.wired) return;
   state.wired = true;
-  byId("analyze").addEventListener("click", beginBackgroundSelection);
+  byId("analyze").addEventListener("click", () => analyze(false));
+  byId("manualAnalyze").addEventListener("click", beginManualSelection);
   byId("infoButton").addEventListener("click", (event) => togglePopover(event, "infoButton", "infoPopover"));
   byId("copyrightButton").addEventListener("click", (event) => togglePopover(event, "copyrightButton", "copyrightPopover"));
+  byId("copyrightLink").addEventListener("click", openCopyrightSite);
   document.addEventListener("click", closeInfo);
   for (const id of ["amount", "size", "chroma", "seed"]) {
     byId(id).addEventListener("input", onControlInput);
