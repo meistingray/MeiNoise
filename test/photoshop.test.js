@@ -31,7 +31,10 @@ function createFixture() {
     colorProfileName: "sRGB IEC61966-2.1",
     activeLayers: [target],
     layers: [target],
-    selection: {bounds: {left: 0, top: 0, right: 20, bottom: 20}},
+    selection: {
+      bounds: {left: 0, top: 0, right: 20, bottom: 20},
+      async deselect() { this.bounds = null; }
+    },
     async createLayer(options) {
       const layer = {
         id: 99,
@@ -55,6 +58,10 @@ function createFixture() {
       ElementPlacement: {PLACEBEFORE: "placeBefore"}
     },
     action: {
+      async addNotificationListener(events, callback) {
+        calls.notificationEvents = events;
+        calls.notificationCallback = callback;
+      },
       async batchPlay(descriptors) {
         calls.batchPlay = descriptors;
         return [{}];
@@ -125,8 +132,16 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   const captured = adapter.captureTarget();
   assert.equal(captured.layerId, fixture.target.id);
   assert.equal(adapter.getActiveLayerIdentity().layerId, fixture.target.id);
+  let selectionNotificationCount = 0;
+  await adapter.listenForBackgroundSelection(() => selectionNotificationCount++);
+  assert.deepEqual(fixture.calls.notificationEvents, ["set"]);
+  fixture.calls.notificationCallback("set", {_target: [{_ref: "channel", _property: "selection"}]});
+  assert.equal(selectionNotificationCount, 1);
   await adapter.activateBackgroundSelectionTool();
   assert.equal(fixture.calls.batchPlay[0]._target[0]._ref, "marqueeRectTool");
+  assert.equal(adapter.hasBackgroundSelection(fixture.document.id), false);
+  fixture.document.selection.bounds = {left: 0, top: 0, right: 20, bottom: 20};
+  assert.equal(adapter.hasBackgroundSelection(fixture.document.id), true);
   const analysis = await adapter.analyzeSelection();
   assert.ok(analysis.sampleCount >= 128);
   assert.equal(fixture.calls.modalDepth, 0);

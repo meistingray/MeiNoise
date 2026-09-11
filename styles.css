@@ -14,7 +14,9 @@ body {
   overflow: hidden;
   color: var(--uxp-host-text-color, #efefef);
   background: var(--uxp-host-background-color, #292929);
-  font: 12px/1.45 system-ui, sans-serif;
+  font-family: system-ui, sans-serif;
+  font-size: var(--uxp-host-font-size-larger, 14px);
+  line-height: 1.45;
 }
 
 main {
@@ -25,7 +27,7 @@ main {
   flex-direction: column;
 }
 header { flex: none; margin-bottom: 10px; }
-h1 { margin: 0; font-size: 18px; font-weight: 650; }
+h1 { margin: 0; font-size: calc(var(--uxp-host-font-size-larger, 14px) + 6px); font-weight: 650; }
 header p, .hint { margin: 3px 0 0; color: var(--muted); }
 
 .boot-error {
@@ -99,13 +101,15 @@ output { color: var(--muted); font-variant-numeric: tabular-nums; }
 input[type="range"] { width: 100%; margin: 0; }
 
 .button {
-  min-height: 30px;
+  min-height: 34px;
   padding: 5px 12px;
   border: 1px solid var(--border);
   border-radius: 5px;
   color: inherit;
   background: rgba(255,255,255,.08);
-  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
   font-weight: 600;
 }
 .button:hover:not(:disabled) { background: rgba(255,255,255,.14); }

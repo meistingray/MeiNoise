@@ -4,6 +4,8 @@ const {analyzeGrain, generateGrainBand, clamp} = require("./math.js");
 const GRAIN_PREFIX = "MeiNoise - ";
 const MAX_ANALYSIS_EDGE = 512;
 const BAND_HEIGHT = 192;
+let backgroundSelectionHandler = null;
+let backgroundSelectionListenerInstalled = false;
 
 function numberValue(value) {
   return value && typeof value === "object" && "value" in value ? value.value : Number(value);
@@ -75,6 +77,10 @@ function captureTarget() {
 
 async function activateBackgroundSelectionTool() {
   await core.executeAsModal(async () => {
+    const document = activeDocument();
+    if (document.selection && document.selection.bounds) {
+      await document.selection.deselect();
+    }
     const result = await action.batchPlay([{
       _obj: "select",
       _target: [{_ref: "marqueeRectTool"}],
@@ -84,6 +90,22 @@ async function activateBackgroundSelectionTool() {
       throw new Error(result[0].message || "无法切换到矩形选框工具。");
     }
   }, {commandName: "Select MeiNoise background sample"});
+}
+
+function hasBackgroundSelection(documentId) {
+  const document = documentById(documentId);
+  return Boolean(document && document.selection && document.selection.bounds);
+}
+
+async function listenForBackgroundSelection(handler) {
+  backgroundSelectionHandler = handler;
+  if (backgroundSelectionListenerInstalled) return;
+  await action.addNotificationListener(["set"], (eventName, descriptor) => {
+    if (!backgroundSelectionHandler) return;
+    const description = JSON.stringify(descriptor || {}).toLowerCase();
+    if (description.includes("selection")) backgroundSelectionHandler();
+  });
+  backgroundSelectionListenerInstalled = true;
 }
 
 function getActiveLayerIdentity() {
@@ -288,6 +310,8 @@ module.exports = {
   captureTarget,
   getActiveLayerIdentity,
   activateBackgroundSelectionTool,
+  hasBackgroundSelection,
+  listenForBackgroundSelection,
   analyzeSelection,
   renderPreview,
   cancelPreview,

@@ -26,6 +26,11 @@ test("compact panel exposes every agreed interaction", () => {
   assert.doesNotMatch(html, /id=["']compare["']/);
   assert.doesNotMatch(html, /id=["'](?:cancel|complete)["']/);
   assert.match(html, /选择图层 → 选择并分析背景 → 调节参数，实时生成/);
+  const controller = fs.readFileSync(path.join(root, "src", "main.js"), "utf8");
+  assert.match(controller, /hasBackgroundSelection/);
+  assert.match(controller, /listenForBackgroundSelection/);
+  assert.doesNotMatch(controller, /setInterval/);
+  assert.match(controller, /松开鼠标后自动分析/);
   assert.doesNotMatch(html, /id=["']setTarget["']/);
   assert.doesNotMatch(html, /id=["']preview["']/);
 });

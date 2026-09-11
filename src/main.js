@@ -29,7 +29,7 @@ function setStatus(message, isError = false) {
 }
 
 function updateAvailability() {
-  byId("analyze").disabled = state.busy;
+  byId("analyze").disabled = state.busy || state.awaitingBackgroundSelection;
 }
 
 function setBusy(busy) {
@@ -61,10 +61,23 @@ function explainError(error) {
 
 function setBackgroundSelectionStage(awaiting) {
   state.awaitingBackgroundSelection = awaiting;
-  byId("analyze").textContent = awaiting ? "分析所选背景" : "选择背景样本";
+  byId("analyze").textContent = awaiting ? "框选后自动分析…" : "选择背景样本";
+  byId("analyze").disabled = state.busy || awaiting;
   byId("analysisHint").textContent = awaiting
-    ? "请在画面中框选背景，然后再次点击上方按钮。"
+    ? "请直接在画面中框选背景，松开鼠标后会自动分析。"
     : "用于匹配非均质明暗响应；不分析也可直接调节。";
+}
+
+function onBackgroundSelectionChanged() {
+  if (!state.awaitingBackgroundSelection || state.busy || !state.target) return;
+  try {
+    if (!photoshop().hasBackgroundSelection(state.target.documentId)) return;
+    setBackgroundSelectionStage(false);
+    analyze();
+  } catch (error) {
+    setBackgroundSelectionStage(false);
+    explainError(error);
+  }
 }
 
 async function ensureTarget() {
@@ -98,19 +111,16 @@ async function beginBackgroundSelection() {
   setStatus("正在准备背景选区……");
   try {
     await ensureTarget();
+    await photoshop().listenForBackgroundSelection(onBackgroundSelectionChanged);
     await photoshop().activateBackgroundSelectionTool();
     setBackgroundSelectionStage(true);
-    setStatus("请框选靠近目标的干净背景，然后点击“分析所选背景”。");
+    setStatus("请框选靠近目标的干净背景；松开鼠标后自动分析。");
   } catch (error) {
+    setBackgroundSelectionStage(false);
     explainError(error);
   } finally {
     setBusy(false);
   }
-}
-
-function handleAnalyze() {
-  if (state.awaitingBackgroundSelection) analyze();
-  else beginBackgroundSelection();
 }
 
 function requestRender(delay = 260) {
@@ -152,6 +162,7 @@ async function analyze() {
     setStatus("分析结果已写入参数，正在更新预览……");
     succeeded = true;
   } catch (error) {
+    setBackgroundSelectionStage(false);
     explainError(error);
   } finally {
     if (previewWasHidden) {
@@ -210,7 +221,7 @@ function closeInfo(event) {
 function wirePanel() {
   if (state.wired) return;
   state.wired = true;
-  byId("analyze").addEventListener("click", handleAnalyze);
+  byId("analyze").addEventListener("click", beginBackgroundSelection);
   byId("infoButton").addEventListener("click", toggleInfo);
   document.addEventListener("click", closeInfo);
   for (const id of ["amount", "size", "chroma", "seed"]) {
