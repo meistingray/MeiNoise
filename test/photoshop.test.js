@@ -15,7 +15,7 @@ function imageData(data, width, height, components, componentSize = 8) {
 }
 
 function createFixture() {
-  const calls = {putPixels: [], history: [], progress: []};
+  const calls = {putPixels: [], history: [], progress: [], modalDepth: 0};
   const target = {
     id: 10,
     name: "Pasted subject",
@@ -56,18 +56,24 @@ function createFixture() {
     },
     core: {
       async executeAsModal(callback) {
-        return callback({
-          isCancelled: false,
-          reportProgress(value) { calls.progress.push(value); },
-          hostControl: {
-            async suspendHistory(value) { calls.history.push(["suspend", value]); return {id: 7}; },
-            async resumeHistory(value, commit) { calls.history.push(["resume", value, commit]); }
-          }
-        });
+        calls.modalDepth++;
+        try {
+          return await callback({
+            isCancelled: false,
+            reportProgress(value) { calls.progress.push(value); },
+            hostControl: {
+              async suspendHistory(value) { calls.history.push(["suspend", value]); return {id: 7}; },
+              async resumeHistory(value, commit) { calls.history.push(["resume", value, commit]); }
+            }
+          });
+        } finally {
+          calls.modalDepth--;
+        }
       }
     },
     imaging: {
       async getPixels(options) {
+        if (calls.modalDepth < 1) throw new Error("imaging.getPixels called outside modal scope");
         const bounds = options.sourceBounds;
         const width = Math.round(bounds.right - bounds.left);
         const height = Math.round(bounds.bottom - bounds.top);
@@ -80,6 +86,7 @@ function createFixture() {
         return {imageData: imageData(data, width, height, 3), sourceBounds: bounds};
       },
       async getSelection(options) {
+        if (calls.modalDepth < 1) throw new Error("imaging.getSelection called outside modal scope");
         const bounds = options.sourceBounds;
         const width = Math.round(bounds.right - bounds.left);
         const height = Math.round(bounds.bottom - bounds.top);
@@ -114,6 +121,7 @@ test("Photoshop adapter captures, analyzes, and renders a clipped preview", asyn
   assert.equal(adapter.getActiveLayerIdentity().layerId, fixture.target.id);
   const analysis = await adapter.analyzeSelection();
   assert.ok(analysis.sampleCount >= 128);
+  assert.equal(fixture.calls.modalDepth, 0);
 
   const previewId = await adapter.renderPreview(captured, {
     amount: 2,

@@ -84,52 +84,53 @@ function resolveTarget(target) {
 }
 
 async function analyzeSelection() {
-  const document = activeDocument();
-  validateDocument(document);
-  const selectionBounds = document.selection && document.selection.bounds;
-  if (!selectionBounds) throw new Error("请先在干净背景上创建一个选区。");
-  const bounds = normalizeBounds(selectionBounds, document);
-  const sourceWidth = bounds.right - bounds.left;
-  const sourceHeight = bounds.bottom - bounds.top;
-  if (sourceWidth < 8 || sourceHeight < 8) throw new Error("背景选区太小。");
-  const scale = Math.min(1, MAX_ANALYSIS_EDGE / Math.max(sourceWidth, sourceHeight));
-  const targetSize = scale < 1 ? {
-    width: Math.max(8, Math.round(sourceWidth * scale)),
-    height: Math.max(8, Math.round(sourceHeight * scale))
-  } : undefined;
+  return core.executeAsModal(async () => {
+    const document = activeDocument();
+    validateDocument(document);
+    const selectionBounds = document.selection && document.selection.bounds;
+    if (!selectionBounds) throw new Error("请先在干净背景上创建一个选区。");
+    const bounds = normalizeBounds(selectionBounds, document);
+    const sourceWidth = bounds.right - bounds.left;
+    const sourceHeight = bounds.bottom - bounds.top;
+    if (sourceWidth < 8 || sourceHeight < 8) throw new Error("背景选区太小。");
+    const scale = Math.min(1, MAX_ANALYSIS_EDGE / Math.max(sourceWidth, sourceHeight));
+    const targetSize = scale < 1 ? {
+      width: Math.max(8, Math.round(sourceWidth * scale)),
+      height: Math.max(8, Math.round(sourceHeight * scale))
+    } : undefined;
 
-  const pixelOptions = {
-    documentID: document.id,
-    sourceBounds: bounds,
-    componentSize: 8,
-    colorSpace: "RGB",
-    applyAlpha: true
-  };
-  if (targetSize) pixelOptions.targetSize = targetSize;
-  const selectionOptions = {documentID: document.id, sourceBounds: bounds, componentSize: 8};
-  if (targetSize) selectionOptions.targetSize = targetSize;
+    const pixelOptions = {
+      documentID: document.id,
+      sourceBounds: bounds,
+      componentSize: 8,
+      colorSpace: "RGB",
+      applyAlpha: true
+    };
+    if (targetSize) pixelOptions.targetSize = targetSize;
+    const selectionOptions = {documentID: document.id, sourceBounds: bounds, componentSize: 8};
+    if (targetSize) selectionOptions.targetSize = targetSize;
 
-  let pixels;
-  let selection;
-  try {
-    pixels = await imaging.getPixels(pixelOptions);
-    selection = await imaging.getSelection(selectionOptions);
-    const data = await pixels.imageData.getData({chunky: true});
-    const mask = await selection.imageData.getData({chunky: true});
-    const result = analyzeGrain({
-      data,
-      mask,
-      width: pixels.imageData.width,
-      height: pixels.imageData.height,
-      components: pixels.imageData.components,
-      componentSize: pixels.imageData.componentSize,
-      documentScale: sourceWidth / pixels.imageData.width
-    });
-    return result;
-  } finally {
-    if (pixels && pixels.imageData) pixels.imageData.dispose();
-    if (selection && selection.imageData) selection.imageData.dispose();
-  }
+    let pixels;
+    let selection;
+    try {
+      pixels = await imaging.getPixels(pixelOptions);
+      selection = await imaging.getSelection(selectionOptions);
+      const data = await pixels.imageData.getData({chunky: true});
+      const mask = await selection.imageData.getData({chunky: true});
+      return analyzeGrain({
+        data,
+        mask,
+        width: pixels.imageData.width,
+        height: pixels.imageData.height,
+        components: pixels.imageData.components,
+        componentSize: pixels.imageData.componentSize,
+        documentScale: sourceWidth / pixels.imageData.width
+      });
+    } finally {
+      if (pixels && pixels.imageData) pixels.imageData.dispose();
+      if (selection && selection.imageData) selection.imageData.dispose();
+    }
+  }, {commandName: "Analyze MeiNoise background selection"});
 }
 
 async function deleteLayerById(document, layerId) {
