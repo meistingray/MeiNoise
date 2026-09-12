@@ -18,7 +18,11 @@ test("hash is deterministic and coordinate dependent", () => {
 
 test("tone curve interpolates its three anchors", () => {
   assert.equal(toneGain(0, [2, 1, 0.5]), 2);
+  assert.equal(toneGain(1 / 6, [2, 1, 0.5]), 2);
+  assert.equal(toneGain(1 / 3, [2, 1, 0.5]), 1.5);
   assert.equal(toneGain(0.5, [2, 1, 0.5]), 1);
+  assert.ok(Math.abs(toneGain(2 / 3, [2, 1, 0.5]) - 0.75) < 1e-12);
+  assert.equal(toneGain(5 / 6, [2, 1, 0.5]), 0.5);
   assert.equal(toneGain(1, [2, 1, 0.5]), 0.5);
 });
 
