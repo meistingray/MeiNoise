@@ -148,8 +148,9 @@ header p, .hint { display: block; width: 100%; margin: 1px 0 0; color: var(--mut
 .hidden { display: none; }
 
 .controls { margin: 4px 1px 0; }
-.controls label { display: block; margin-bottom: 1px; }
-.control-heading { display: flex; align-items: center; justify-content: space-between; gap: .5em; margin-bottom: 0; }
+.control-block { display: block; margin-bottom: 1px; }
+.control-heading { display: flex; align-items: center; justify-content: space-between; gap: .5em; min-height: 2em; margin-bottom: 0; }
+.control-heading sp-label { margin: 0; }
 .value-editor {
   display: inline-flex;
   align-items: center;
@@ -159,26 +160,9 @@ header p, .hint { display: block; width: 100%; margin: 1px 0 0; color: var(--mut
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.value-editor input[type="number"] {
-  width: 4.3em;
-  min-width: 0;
-  height: 1.65em;
-  padding: 0 .25em;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.value-editor input[type="number"]:hover,
-.value-editor input[type="number"]:focus {
-  border-color: var(--border);
-  background: rgba(255,255,255,.06);
-}
-.seed-editor input[type="number"] { width: 5.2em; }
-input[type="range"] { width: 100%; margin: 0; }
+.value-editor sp-textfield { width: 5.2em; min-width: 0; margin: 0; }
+.seed-editor sp-textfield { width: 5.2em; }
+.control-block sp-slider { display: block; width: 100%; margin: -0.35em 0 0; }
 
 .button {
   display: inline-flex;

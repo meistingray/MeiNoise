@@ -11,7 +11,7 @@
     <header>
       <div class="brand-row">
         <h1>MeiNoise</h1>
-        <span id="pluginVersion" class="plugin-version">v0.3.4</span>
+        <span id="pluginVersion" class="plugin-version">v0.3.5</span>
         <button id="copyrightButton" class="info-button copyright-button" type="button" aria-label="版权信息" aria-expanded="false">ⓘ</button>
       </div>
       <p class="subtitle">选择图层 → 自动生成噪点 → 调节参数，实时更新</p>
@@ -46,34 +46,34 @@
       </section>
 
       <section class="controls">
-        <label>
+        <div class="control-block">
           <span class="control-heading">
-            <span>Amount</span>
-            <span class="value-editor"><input id="amountInput" type="number" min="0" max="12" step="0.1" value="2.0" inputmode="decimal" aria-label="Amount 数值"><span>%</span></span>
+            <sp-label for="amount">Amount</sp-label>
+            <span class="value-editor"><sp-textfield id="amountInput" type="number" min="0" max="12" step="0.1" value="2.0" aria-label="Amount 数值"></sp-textfield><span>%</span></span>
           </span>
-          <input id="amount" type="range" min="0" max="12" step="0.1" value="2">
-        </label>
-        <label>
+          <sp-slider id="amount" min="0" max="12" step="0.1" value="2" show-value="false" aria-label="Amount"></sp-slider>
+        </div>
+        <div class="control-block">
           <span class="control-heading">
-            <span>Size</span>
-            <span class="value-editor"><input id="sizeInput" type="number" min="0.5" max="6" step="0.1" value="1.0" inputmode="decimal" aria-label="Size 数值"><span>px</span></span>
+            <sp-label for="size">Size</sp-label>
+            <span class="value-editor"><sp-textfield id="sizeInput" type="number" min="0.5" max="6" step="0.1" value="1.0" aria-label="Size 数值"></sp-textfield><span>px</span></span>
           </span>
-          <input id="size" type="range" min="0.5" max="6" step="0.1" value="1">
-        </label>
-        <label>
+          <sp-slider id="size" min="0.5" max="6" step="0.1" value="1" show-value="false" aria-label="Size"></sp-slider>
+        </div>
+        <div class="control-block">
           <span class="control-heading">
-            <span>Chroma</span>
-            <span class="value-editor"><input id="chromaInput" type="number" min="0" max="100" step="1" value="15" inputmode="numeric" aria-label="Chroma 数值"><span>%</span></span>
+            <sp-label for="chroma">Chroma</sp-label>
+            <span class="value-editor"><sp-textfield id="chromaInput" type="number" min="0" max="100" step="1" value="15" aria-label="Chroma 数值"></sp-textfield><span>%</span></span>
           </span>
-          <input id="chroma" type="range" min="0" max="100" step="1" value="15">
-        </label>
-        <label>
+          <sp-slider id="chroma" min="0" max="100" step="1" value="15" show-value="false" aria-label="Chroma"></sp-slider>
+        </div>
+        <div class="control-block">
           <span class="control-heading">
-            <span>Seed</span>
-            <span class="value-editor seed-editor"><input id="seedInput" type="number" min="0" max="255" step="1" value="37" inputmode="numeric" aria-label="Seed 数值"></span>
+            <sp-label for="seed">Seed</sp-label>
+            <span class="value-editor seed-editor"><sp-textfield id="seedInput" type="number" min="0" max="255" step="1" value="37" aria-label="Seed 数值"></sp-textfield></span>
           </span>
-          <input id="seed" type="range" min="0" max="255" step="1" value="37">
-        </label>
+          <sp-slider id="seed" min="0" max="255" step="1" value="37" show-value="false" aria-label="Seed"></sp-slider>
+        </div>
       </section>
     </div>
 
