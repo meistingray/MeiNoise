@@ -1,5 +1,5 @@
 const {app, core, imaging, constants, action} = require("photoshop");
-const {analyzeGrain, combineGrainAnalyses, generateGrainBand, clamp} = require("./math.js");
+const {analyzeGrainRobust, combineGrainAnalyses, generateGrainBand, clamp} = require("./math.js");
 
 const GRAIN_PREFIX = "MeiNoise - ";
 const ANALYSIS_PATCH_EDGE = 128;
@@ -215,7 +215,7 @@ async function analyzeAroundTarget(target) {
         });
         const data = await pixels.imageData.getData({chunky: true});
         try {
-          analyses.push(analyzeGrain({
+          analyses.push(analyzeGrainRobust({
             data,
             width: pixels.imageData.width,
             height: pixels.imageData.height,
@@ -265,7 +265,7 @@ async function analyzeSelection() {
         const data = await pixels.imageData.getData({chunky: true});
         const mask = await selection.imageData.getData({chunky: true});
         try {
-          analyses.push(analyzeGrain({
+          analyses.push(analyzeGrainRobust({
             data,
             mask,
             width: pixels.imageData.width,

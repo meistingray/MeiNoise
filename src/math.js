@@ -28,6 +28,13 @@ function weightedMean(items, readValue) {
   return weightSum ? sum / weightSum : 0;
 }
 
+function normalizedMedianSpread(items, readValue, floor) {
+  if (items.length < 2) return 0;
+  const values = items.map(readValue);
+  const center = median(values);
+  return median(values.map((value) => Math.abs(value - center))) / Math.max(floor, Math.abs(center));
+}
+
 /*
  * Texture tends to inflate a grain estimate, so the automatic sampler anchors
  * itself below the median and only combines patches near that anchor. This is
@@ -52,8 +59,10 @@ function combineGrainAnalyses(analyses) {
   const toneCurve = [0, 1, 2].map((index) => clamp(
     weightedMean(selected, (item) => item.toneCurve[index]), 0.45, 2.2
   ));
+  const averageTextureScore = weightedMean(selected, (item) => item.textureScore || 0);
   const directional = selected.filter((item) =>
     (item.anisotropyGain || 0) >= 0.15 &&
+    (item.textureScore || 0) < 0.35 &&
     Math.abs(Math.log(item.aspectCandidate || 1)) >= Math.log(1.08)
   );
   const horizontal = directional.filter((item) => (item.aspectCandidate || 1) > 1);
@@ -66,6 +75,9 @@ function combineGrainAnalyses(analyses) {
     : 1;
   const parameterSource = useDirection ? dominant : selected;
   const averageConfidence = weightedMean(selected, (item) => item.confidence);
+  const parameterSpread = normalizedMedianSpread(selected, (item) => item.amount, 0.2) +
+    normalizedMedianSpread(selected, (item) => item.size, 0.5);
+  const stability = 1 / (1 + 1.5 * parameterSpread);
   return {
     amount: clamp(weightedMean(parameterSource, (item) => useDirection ? item.anisotropicAmount : item.amount), 0.1, 12),
     size: clamp(weightedMean(parameterSource, (item) => useDirection ? item.anisotropicSize : item.size), 0.5, 6),
@@ -76,7 +88,8 @@ function combineGrainAnalyses(analyses) {
     chroma: clamp(weightedMean(selected, (item) => item.chroma), 0, 100),
     toneCurve,
     sampleCount: selected.reduce((sum, item) => sum + item.sampleCount, 0),
-    confidence: clamp(averageConfidence * Math.min(1, selected.length / 4), 0, 1),
+    confidence: clamp(averageConfidence * Math.min(1, selected.length / 4) * stability, 0, 1),
+    textureScore: averageTextureScore,
     tonalCoverage: Math.max(...selected.map((item) => item.tonalCoverage)),
     patchCount: selected.length,
     candidateCount: analyses.length
@@ -276,7 +289,7 @@ function fitCorrelationModel(observedX, observedY, detrendRadius) {
 }
 
 function analyzeGrain(options) {
-  const {data, width, height, components, componentSize, mask, documentScale = 1} = options;
+  const {data, width, height, components, componentSize, mask, documentScale = 1, analysisRadius} = options;
   if (width < 8 || height < 8 || components < 3) {
     throw new Error("样本太小，请选择至少 8×8 像素的背景区域。");
   }
@@ -284,7 +297,10 @@ function analyzeGrain(options) {
   const lumaResiduals = [];
   const samples = [];
   const stride = Math.max(1, Math.floor(Math.sqrt((width * height) / 180000)));
-  const detrendRadius = Math.max(2, Math.min(8, Math.floor((Math.min(width, height) - 3) / 2), Math.floor(Math.min(width, height) / 6)));
+  const maximumRadius = Math.max(2, Math.min(8, Math.floor((Math.min(width, height) - 3) / 2), Math.floor(Math.min(width, height) / 6)));
+  const detrendRadius = analysisRadius === undefined
+    ? maximumRadius
+    : Math.max(2, Math.min(maximumRadius, Math.round(analysisRadius)));
   const {integrals, integralWidth} = buildChannelIntegrals(data, width, height, components, maxValue);
 
   for (let y = detrendRadius; y < height - detrendRadius; y += stride) {
@@ -422,6 +438,24 @@ function analyzeGrain(options) {
   };
 }
 
+function analyzeGrainRobust(options) {
+  const minimumEdge = Math.min(options.width, options.height);
+  const maximumRadius = Math.max(2, Math.min(8, Math.floor((minimumEdge - 3) / 2), Math.floor(minimumEdge / 6)));
+  const compact = analyzeGrain({...options, analysisRadius: 3});
+  if (maximumRadius <= 3) return {...compact, textureScore: 0};
+
+  const broad = analyzeGrain({...options, analysisRadius: 8});
+  const sizeInflation = Math.max(0, broad.size - compact.size) / Math.max(1, compact.size);
+  const amountInflation = Math.max(0, broad.amount / Math.max(compact.amount, 0.1) - 1);
+  const structureInflation = Math.max(0, broad.structure - compact.structure);
+  const textureScore = clamp(0.8 * sizeInflation + 0.8 * amountInflation + 0.5 * structureInflation, 0, 1);
+  return {
+    ...compact,
+    confidence: compact.confidence * (1 - 0.7 * textureScore),
+    textureScore
+  };
+}
+
 // Integer hash with no external provenance/dependency. Returns [0, 1).
 function hash2D(x, y, seed) {
   let h = Math.imul(x | 0, 0x1f123bb5) ^ Math.imul(y | 0, 0x5f356495) ^ (seed | 0);
@@ -541,5 +575,5 @@ function generateGrainBand(options) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = {clamp, median, robustSigma, combineGrainAnalyses, analyzeGrain, hash2D, gaussianNoise, correlationKernel, correlatedNoiseField, toneGain, generateGrainBand};
+  module.exports = {clamp, median, robustSigma, combineGrainAnalyses, analyzeGrain, analyzeGrainRobust, hash2D, gaussianNoise, correlationKernel, correlatedNoiseField, toneGain, generateGrainBand};
 }

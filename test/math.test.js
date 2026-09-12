@@ -1,6 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const {robustSigma, combineGrainAnalyses, hash2D, toneGain, generateGrainBand, analyzeGrain, correlationKernel} = require("../src/math.js");
+const {robustSigma, combineGrainAnalyses, hash2D, toneGain, generateGrainBand, analyzeGrain, analyzeGrainRobust, correlationKernel} = require("../src/math.js");
+
+function clampByte(value) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
 
 test("robustSigma ignores a large outlier", () => {
   const data = [-1, -1, -0.8, -0.5, 0, 0.4, 0.8, 1, 100];
@@ -113,6 +117,40 @@ test("normalized coarse branch makes Size increase spatial persistence", () => {
   const measured = [1.5, 3, 5].map((size) => neighborCorrelation(size));
   assert.ok(measured[0] < measured[1] && measured[1] < measured[2], measured.join(", "));
   assert.ok(neighborCorrelation(4, 0.8, "y") > neighborCorrelation(4, 0.8, "x"));
+});
+
+test("dual-radius analysis resists broad texture being fitted as coarse noise", () => {
+  const width = 96;
+  const height = 96;
+  const pixels = width * height;
+  const target = new Uint8Array(pixels * 4);
+  for (let pixel = 0; pixel < pixels; pixel++) {
+    target[pixel * 4] = 128;
+    target[pixel * 4 + 1] = 128;
+    target[pixel * 4 + 2] = 128;
+    target[pixel * 4 + 3] = 255;
+  }
+  const grain = generateGrainBand({
+    targetData: target, width, height, components: 4, componentSize: 8,
+    originX: 0, originY: 0, amount: 3, size: 2.5, structure: 0.7,
+    aspect: 1, chroma: 0, seed: 37, toneCurve: [1, 1, 1]
+  });
+  const textured = new Uint8Array(pixels * 3);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const texture = 16 * (Math.sin(x * 2 * Math.PI / 28) + 0.6 * Math.sin(y * 2 * Math.PI / 36));
+      for (let channel = 0; channel < 3; channel++) {
+        const index = (y * width + x) * 3 + channel;
+        textured[index] = clampByte(128 + 2 * grain[index] - 255 + texture);
+      }
+    }
+  }
+  const broad = analyzeGrain({data: textured, width, height, components: 3, componentSize: 8});
+  const robust = analyzeGrainRobust({data: textured, width, height, components: 3, componentSize: 8});
+  assert.ok(broad.size >= 5, `broad analysis Size was ${broad.size}`);
+  assert.ok(robust.size <= 3.25, `robust analysis Size was ${robust.size}`);
+  assert.ok(Math.abs(robust.amount - 3) < 0.5, `robust Amount was ${robust.amount}`);
+  assert.ok(robust.textureScore > 0.6, `texture score was ${robust.textureScore}`);
 });
 
 test("analysis returns bounded controls for a noisy flat patch", () => {

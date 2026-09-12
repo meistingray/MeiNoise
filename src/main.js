@@ -165,9 +165,10 @@ async function analyze(useSelection = false) {
     const completeTone = result.tonalCoverage >= 3;
     const resultNode = byId("analysisResult");
     const source = useSelection ? "选区" : `${result.patchCount || 1} 个周边样本`;
+    const textureNote = result.textureScore >= 0.35 ? " · 已抑制纹理干扰" : "";
     resultNode.textContent = completeTone
-      ? `已从${source}匹配颗粒 · 明暗响应完整 · 置信度${confidence}`
-      : `已从${source}匹配颗粒 · 明暗响应部分使用默认值 · 置信度${confidence}`;
+      ? `已从${source}匹配颗粒 · 明暗响应完整${textureNote} · 置信度${confidence}`
+      : `已从${source}匹配颗粒 · 明暗响应部分使用默认值${textureNote} · 置信度${confidence}`;
     resultNode.classList.remove("hidden");
     setStatus("噪点已匹配，正在生成图层……");
     succeeded = true;
