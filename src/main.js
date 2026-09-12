@@ -40,7 +40,9 @@ function setStatus(message, isError = false) {
 
 function updateAvailability() {
   byId("analyze").disabled = state.busy || state.awaitingManualSelection;
-  byId("manualAnalyze").disabled = state.busy || state.awaitingManualSelection;
+  // Keep the manual button available while waiting so the user can cancel a
+  // sampling operation without having to draw a throwaway selection.
+  byId("manualAnalyze").disabled = state.busy;
 }
 
 function setBusy(busy) {
@@ -88,7 +90,7 @@ function explainError(error) {
 
 function setManualSelectionStage(awaiting) {
   state.awaitingManualSelection = awaiting;
-  byId("manualAnalyze").textContent = awaiting ? "采集中…" : "手动采集样本";
+  byId("manualAnalyze").textContent = awaiting ? "取消采集" : "手动采集样本";
   byId("analysisHint").textContent = awaiting
     ? "请在画面中框选干净背景；松开鼠标后会立即分析并生成。"
     : "自动匹配周边背景并立即生成；也可手动框选样本。";
@@ -135,7 +137,12 @@ async function ensureTarget() {
 }
 
 async function beginManualSelection() {
-  if (state.busy || state.awaitingManualSelection) return;
+  if (state.busy) return;
+  if (state.awaitingManualSelection) {
+    setManualSelectionStage(false);
+    setStatus("已取消手动背景采集。");
+    return;
+  }
   setBusy(true);
   setStatus("正在准备手动背景选区……");
   try {
@@ -160,8 +167,19 @@ function requestRender(delay = 260) {
   }, delay);
 }
 
+function cancelScheduledRender() {
+  if (state.renderTimer) {
+    clearTimeout(state.renderTimer);
+    state.renderTimer = null;
+  }
+  state.pendingRender = false;
+}
+
 async function analyze(useSelection = false) {
   if (state.busy) return;
+  // Analysis produces a fresh parameter set and schedules its own render.
+  // Discard a stale slider render so it cannot run again afterwards.
+  cancelScheduledRender();
   setBusy(true);
   setStatus(useSelection ? "正在分析手动背景样本……" : "正在自动匹配并生成噪点……");
   let succeeded = false;

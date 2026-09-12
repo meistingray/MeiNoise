@@ -57,6 +57,9 @@ test("compact panel exposes every agreed interaction", () => {
   assert.match(html, /show-value="false"/);
   assert.match(controller, /onNumberInput/);
   assert.match(controller, /commitNumberInput/);
+  assert.match(controller, /awaitingManualSelection[\s\S]*取消采集/);
+  assert.match(controller, /function cancelScheduledRender\(\)/);
+  assert.match(controller, /cancelScheduledRender\(\);[\s\S]*setBusy\(true\)/);
   assert.doesNotMatch(html, /id=["']setTarget["']/);
   assert.doesNotMatch(html, /id=["']preview["']/);
 });
