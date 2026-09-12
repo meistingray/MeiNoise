@@ -149,8 +149,35 @@ header p, .hint { display: block; width: 100%; margin: 1px 0 0; color: var(--mut
 
 .controls { margin: 4px 1px 0; }
 .controls label { display: block; margin-bottom: 1px; }
-.controls label > span { display: flex; justify-content: space-between; margin-bottom: 0; }
-output { color: var(--muted); font-variant-numeric: tabular-nums; }
+.control-heading { display: flex; align-items: center; justify-content: space-between; gap: .5em; margin-bottom: 0; }
+.value-editor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .25em;
+  min-width: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.value-editor input[type="number"] {
+  width: 4.3em;
+  min-width: 0;
+  height: 1.65em;
+  padding: 0 .25em;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.value-editor input[type="number"]:hover,
+.value-editor input[type="number"]:focus {
+  border-color: var(--border);
+  background: rgba(255,255,255,.06);
+}
+.seed-editor input[type="number"] { width: 5.2em; }
 input[type="range"] { width: 100%; margin: 0; }
 
 .button {

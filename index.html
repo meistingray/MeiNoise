@@ -11,7 +11,7 @@
     <header>
       <div class="brand-row">
         <h1>MeiNoise</h1>
-        <span id="pluginVersion" class="plugin-version">v0.3.0</span>
+        <span id="pluginVersion" class="plugin-version">v0.3.4</span>
         <button id="copyrightButton" class="info-button copyright-button" type="button" aria-label="版权信息" aria-expanded="false">ⓘ</button>
       </div>
       <p class="subtitle">选择图层 → 自动生成噪点 → 调节参数，实时更新</p>
@@ -47,19 +47,31 @@
 
       <section class="controls">
         <label>
-          <span>Amount <output id="amountValue">2.0%</output></span>
+          <span class="control-heading">
+            <span>Amount</span>
+            <span class="value-editor"><input id="amountInput" type="number" min="0" max="12" step="0.1" value="2.0" inputmode="decimal" aria-label="Amount 数值"><span>%</span></span>
+          </span>
           <input id="amount" type="range" min="0" max="12" step="0.1" value="2">
         </label>
         <label>
-          <span>Size <output id="sizeValue">1.0 px</output></span>
+          <span class="control-heading">
+            <span>Size</span>
+            <span class="value-editor"><input id="sizeInput" type="number" min="0.5" max="6" step="0.1" value="1.0" inputmode="decimal" aria-label="Size 数值"><span>px</span></span>
+          </span>
           <input id="size" type="range" min="0.5" max="6" step="0.1" value="1">
         </label>
         <label>
-          <span>Chroma <output id="chromaValue">15%</output></span>
+          <span class="control-heading">
+            <span>Chroma</span>
+            <span class="value-editor"><input id="chromaInput" type="number" min="0" max="100" step="1" value="15" inputmode="numeric" aria-label="Chroma 数值"><span>%</span></span>
+          </span>
           <input id="chroma" type="range" min="0" max="100" step="1" value="15">
         </label>
         <label>
-          <span>Seed <output id="seedValue">37</output></span>
+          <span class="control-heading">
+            <span>Seed</span>
+            <span class="value-editor seed-editor"><input id="seedInput" type="number" min="0" max="255" step="1" value="37" inputmode="numeric" aria-label="Seed 数值"></span>
+          </span>
           <input id="seed" type="range" min="0" max="255" step="1" value="37">
         </label>
       </section>

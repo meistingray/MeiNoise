@@ -524,19 +524,10 @@ function correlatedNoiseField(width, height, originX, originY, size, structure, 
 
 function toneGain(luma, curve) {
   const values = curve && curve.length === 3 ? curve : [1.18, 1, 0.72];
-  const darkCenter = 1 / 6;
-  const middleCenter = 0.5;
-  const brightCenter = 5 / 6;
-  if (luma <= darkCenter) return values[0];
-  if (luma < middleCenter) {
-    return values[0] + (values[1] - values[0]) *
-      smoothstep((luma - darkCenter) / (middleCenter - darkCenter));
+  if (luma <= 0.5) {
+    return values[0] + (values[1] - values[0]) * smoothstep(luma * 2);
   }
-  if (luma < brightCenter) {
-    return values[1] + (values[2] - values[1]) *
-      smoothstep((luma - middleCenter) / (brightCenter - middleCenter));
-  }
-  return values[2];
+  return values[1] + (values[2] - values[1]) * smoothstep((luma - 0.5) * 2);
 }
 
 function generateGrainBand(options) {

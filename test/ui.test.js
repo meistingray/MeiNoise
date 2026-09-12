@@ -20,7 +20,7 @@ test("panel loads a root external controller from the head", () => {
 
 test("compact panel exposes every agreed interaction", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const id of ["pluginVersion", "copyrightButton", "copyrightPopover", "copyrightLink", "analyze", "manualAnalyze", "infoButton", "analysisHint", "amount", "size", "chroma", "seed"]) {
+  for (const id of ["pluginVersion", "copyrightButton", "copyrightPopover", "copyrightLink", "analyze", "manualAnalyze", "infoButton", "analysisHint", "amount", "size", "chroma", "seed", "amountInput", "sizeInput", "chromaInput", "seedInput"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
   }
   assert.doesNotMatch(html, /id=["']compare["']/);
@@ -51,6 +51,9 @@ test("compact panel exposes every agreed interaction", () => {
   assert.doesNotMatch(styles, /(?:44px|54px|120px)/);
   assert.match(styles, /\.button[^}]*justify-content:\s*center/);
   assert.match(styles, /"Segoe UI Symbol"/);
+  assert.equal((html.match(/type="number"/g) || []).length, 4);
+  assert.match(controller, /onNumberInput/);
+  assert.match(controller, /commitNumberInput/);
   assert.doesNotMatch(html, /id=["']setTarget["']/);
   assert.doesNotMatch(html, /id=["']preview["']/);
 });

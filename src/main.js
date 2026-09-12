@@ -11,6 +11,12 @@ function photoshop() {
 const DEFAULT_TONE_CURVE = [1.18, 1, 0.72];
 const DEFAULT_STRUCTURE = 0.65;
 const DEFAULT_ASPECT = 1;
+const CONTROL_SPECS = {
+  amount: {inputId: "amountInput", decimals: 1, integer: false},
+  size: {inputId: "sizeInput", decimals: 1, integer: false},
+  chroma: {inputId: "chromaInput", decimals: 0, integer: true},
+  seed: {inputId: "seedInput", decimals: 0, integer: true}
+};
 const state = {
   target: null,
   previewId: null,
@@ -54,11 +60,25 @@ function settings() {
   };
 }
 
+function clampControlValue(value, control) {
+  const minimum = Number(control.min);
+  const maximum = Number(control.max);
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function formatControlValue(id, value) {
+  const spec = CONTROL_SPECS[id];
+  const normalized = spec.integer ? Math.round(value) : value;
+  return normalized.toFixed(spec.decimals);
+}
+
+function syncNumberFromSlider(id) {
+  const value = Number(byId(id).value);
+  byId(CONTROL_SPECS[id].inputId).value = formatControlValue(id, value);
+}
+
 function updateOutputs() {
-  byId("amountValue").textContent = Number(byId("amount").value).toFixed(1) + "%";
-  byId("sizeValue").textContent = Number(byId("size").value).toFixed(1) + " px";
-  byId("chromaValue").textContent = Math.round(Number(byId("chroma").value)) + "%";
-  byId("seedValue").textContent = String(Math.round(Number(byId("seed").value)));
+  for (const id of Object.keys(CONTROL_SPECS)) syncNumberFromSlider(id);
 }
 
 function explainError(error) {
@@ -214,6 +234,30 @@ function onControlInput() {
   requestRender();
 }
 
+function onNumberInput(id) {
+  const spec = CONTROL_SPECS[id];
+  const editor = byId(spec.inputId);
+  const value = Number(editor.value);
+  if (editor.value === "" || !Number.isFinite(value)) return;
+  const slider = byId(id);
+  if (value < Number(slider.min) || value > Number(slider.max)) return;
+  slider.value = spec.integer ? Math.round(value) : value;
+  requestRender();
+}
+
+function commitNumberInput(id) {
+  const spec = CONTROL_SPECS[id];
+  const editor = byId(spec.inputId);
+  const slider = byId(id);
+  let value = Number(editor.value);
+  if (editor.value === "" || !Number.isFinite(value)) value = Number(slider.value);
+  value = clampControlValue(value, slider);
+  if (spec.integer) value = Math.round(value);
+  slider.value = value;
+  editor.value = formatControlValue(id, Number(slider.value));
+  requestRender();
+}
+
 function togglePopover(event, buttonId, popoverId) {
   event.stopPropagation();
   const popover = byId(popoverId);
@@ -257,6 +301,15 @@ function wirePanel() {
   for (const id of ["amount", "size", "chroma", "seed"]) {
     byId(id).addEventListener("input", onControlInput);
     byId(id).addEventListener("change", onControlInput);
+    const editor = byId(CONTROL_SPECS[id].inputId);
+    editor.addEventListener("input", () => onNumberInput(id));
+    editor.addEventListener("change", () => commitNumberInput(id));
+    editor.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        commitNumberInput(id);
+        editor.blur();
+      }
+    });
   }
 
   updateOutputs();
