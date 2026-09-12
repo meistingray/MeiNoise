@@ -1,7 +1,8 @@
 const {app, core, imaging, constants, action} = require("photoshop");
 const {analyzeGrainRobust, combineGrainAnalyses, generateGrainBand, clamp} = require("./math.js");
+const {t} = require("./i18n.js");
 
-const GRAIN_PREFIX = "MeiNoise - ";
+const GRAIN_PREFIX = t("grainPrefix");
 const ANALYSIS_PATCH_EDGE = 128;
 const MAX_MANUAL_PATCHES_PER_AXIS = 4;
 const BAND_HEIGHT = 192;
@@ -33,7 +34,7 @@ function findLayer(layers, id) {
 }
 
 function activeDocument() {
-  if (!app.documents.length) throw new Error("请先打开一个 Photoshop 文档。");
+  if (!app.documents.length) throw new Error(t("noDocument"));
   return app.activeDocument;
 }
 
@@ -49,7 +50,7 @@ function validateDocument(document) {
   const mode = document.mode;
   const isRgb = mode === undefined || mode === null ||
     mode === documentModes.RGB || String(mode).toLowerCase().includes("rgb");
-  if (!isRgb) throw new Error("MeiNoise 目前只支持 RGB 文档。");
+  if (!isRgb) throw new Error(t("rgbOnly"));
 
   // UXP returns a BitsPerChannelType enum (for example "bitDepth8"), not
   // the numeric value shown in Photoshop's document tab.
@@ -62,17 +63,17 @@ function validateDocument(document) {
     normalizedDepth === "8" || normalizedDepth === "bitdepth8";
   const isSixteen = depth === depthTypes.SIXTEEN || depth === 16 ||
     normalizedDepth === "16" || normalizedDepth === "bitdepth16";
-  if (!isEight && !isSixteen) throw new Error("MeiNoise 目前只支持 8 位和 16 位文档。");
+  if (!isEight && !isSixteen) throw new Error(t("bitDepthOnly"));
 }
 
 function captureTarget() {
   const document = activeDocument();
   validateDocument(document);
   const layer = document.activeLayers && document.activeLayers[0];
-  if (!layer) throw new Error("请选择一个目标图层。");
-  if (layer.name.startsWith(GRAIN_PREFIX)) throw new Error("请选择需要匹配颗粒的原图层，而不是 MeiNoise 颗粒层。");
+  if (!layer) throw new Error(t("selectTarget"));
+  if (layer.name.startsWith(GRAIN_PREFIX)) throw new Error(t("selectNonGrain"));
   const bounds = normalizeBounds(layer.boundsNoEffects || layer.bounds, document);
-  if (bounds.right <= bounds.left || bounds.bottom <= bounds.top) throw new Error("目标图层没有可处理的像素范围。");
+  if (bounds.right <= bounds.left || bounds.bottom <= bounds.top) throw new Error(t("emptyTarget"));
   return {documentId: document.id, layerId: layer.id, name: layer.name, bounds};
 }
 
@@ -88,9 +89,9 @@ async function activateBackgroundSelectionTool() {
       _options: {dialogOptions: "dontDisplay"}
     }], {});
     if (result && result[0] && result[0]._obj === "error") {
-      throw new Error(result[0].message || "无法切换到矩形选框工具。");
+      throw new Error(result[0].message || t("marqueeFailed"));
     }
-  }, {commandName: "Select MeiNoise background sample"});
+  }, {commandName: t("commandSelectSample")});
 }
 
 function hasBackgroundSelection(documentId) {
@@ -112,16 +113,16 @@ async function listenForBackgroundSelection(handler) {
 function getActiveLayerIdentity() {
   const document = activeDocument();
   const layer = document.activeLayers && document.activeLayers[0];
-  if (!layer) throw new Error("请选择要添加颗粒的图层。");
+  if (!layer) throw new Error(t("selectLayer"));
   return {documentId: document.id, layerId: layer.id, name: layer.name};
 }
 
 function resolveTarget(target) {
   const document = activeDocument();
-  if (!target || document.id !== target.documentId) throw new Error("目标文档已改变，请重新设置目标图层。");
+  if (!target || document.id !== target.documentId) throw new Error(t("documentChanged"));
   validateDocument(document);
   const layer = findLayer(document.layers, target.layerId);
-  if (!layer) throw new Error("目标图层已不存在，请重新设置。");
+  if (!layer) throw new Error(t("targetMissing"));
   return {document, layer, bounds: normalizeBounds(layer.boundsNoEffects || layer.bounds, document)};
 }
 
@@ -197,7 +198,7 @@ async function analyzeAroundTarget(target) {
   const resolved = resolveTarget(target);
   const candidates = autoSampleBounds(resolved.bounds, resolved.document);
   if (!candidates.length) {
-    throw new Error("目标图层周围没有可采样区域。请点击“手动”框选背景样本。");
+    throw new Error(t("noAutoSamples"));
   }
   return core.executeAsModal(async () => {
     const analyses = [];
@@ -225,14 +226,14 @@ async function analyzeAroundTarget(target) {
         } catch (error) {
           // Edges and detailed patches are expected; other patches can carry
           // the estimate. Only fail after all candidates have been considered.
-          if (!error || !String(error.message || error).includes("有效样本不足")) throw error;
+          if (!error || error.code !== "MEINOISE_INSUFFICIENT_SAMPLES") throw error;
         }
       } finally {
         if (pixels && pixels.imageData) pixels.imageData.dispose();
       }
     }
     return combineGrainAnalyses(analyses);
-  }, {commandName: "Analyze MeiNoise surrounding background"});
+  }, {commandName: t("commandAnalyzeAround")});
 }
 
 async function analyzeSelection() {
@@ -240,11 +241,11 @@ async function analyzeSelection() {
     const document = activeDocument();
     validateDocument(document);
     const selectionBounds = document.selection && document.selection.bounds;
-    if (!selectionBounds) throw new Error("请先在干净背景上创建一个选区。");
+    if (!selectionBounds) throw new Error(t("noSelection"));
     const bounds = normalizeBounds(selectionBounds, document);
     const sourceWidth = bounds.right - bounds.left;
     const sourceHeight = bounds.bottom - bounds.top;
-    if (sourceWidth < 8 || sourceHeight < 8) throw new Error("背景选区太小。");
+    if (sourceWidth < 8 || sourceHeight < 8) throw new Error(t("selectionSmall"));
     const analyses = [];
     for (const patchBounds of manualSampleBounds(bounds)) {
       let pixels;
@@ -274,16 +275,16 @@ async function analyzeSelection() {
             componentSize: pixels.imageData.componentSize
           }));
         } catch (error) {
-          if (!error || !String(error.message || error).includes("有效样本不足")) throw error;
+          if (!error || error.code !== "MEINOISE_INSUFFICIENT_SAMPLES") throw error;
         }
       } finally {
         if (pixels && pixels.imageData) pixels.imageData.dispose();
         if (selection && selection.imageData) selection.imageData.dispose();
       }
     }
-    if (!analyses.length) throw new Error("选区内没有足够的平坦背景，请扩大选区并避开明显边缘或纹理。");
+    if (!analyses.length) throw new Error(t("noFlatSelection"));
     return combineGrainAnalyses(analyses);
-  }, {commandName: "Analyze MeiNoise background selection"});
+  }, {commandName: t("commandAnalyzeSelection")});
 }
 
 async function deleteLayerById(document, layerId) {
@@ -297,12 +298,12 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
   const {document, layer: targetLayer, bounds} = resolved;
   const width = bounds.right - bounds.left;
   const height = bounds.bottom - bounds.top;
-  if (width <= 0 || height <= 0) throw new Error("目标图层没有可处理的像素范围。");
+  if (width <= 0 || height <= 0) throw new Error(t("emptyTarget"));
 
   return core.executeAsModal(async (executionContext) => {
     const suspension = await executionContext.hostControl.suspendHistory({
       documentID: document.id,
-      name: "Update MeiNoise preview"
+      name: t("commandUpdatePreview")
     });
     try {
       if (previousPreviewId) await deleteLayerById(document, previousPreviewId);
@@ -316,7 +317,7 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
       preview.isClippingMask = true;
 
       for (let offsetY = 0; offsetY < height; offsetY += BAND_HEIGHT) {
-        if (executionContext.isCancelled) throw new Error("预览已取消。");
+        if (executionContext.isCancelled) throw new Error(t("previewCancelled"));
         const bandHeight = Math.min(BAND_HEIGHT, height - offsetY);
         let source;
         let outputImage;
@@ -334,7 +335,7 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
             colorSpace: "RGB"
           });
           if (source.imageData.componentSize !== 8 && source.imageData.componentSize !== 16) {
-            throw new Error("MeiNoise 目前只支持 8 位和 16 位文档。");
+            throw new Error(t("bitDepthOnly"));
           }
           const sourceData = await source.imageData.getData({chunky: true, fullRange: true});
           const actual = source.sourceBounds;
@@ -373,14 +374,14 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
             imageData: outputImage,
             replace: offsetY === 0,
             targetBounds: {left: actualLeft, top: actualTop},
-            commandName: "Render MeiNoise preview"
+            commandName: t("commandRenderProgress")
           });
         } finally {
           if (source && source.imageData) source.imageData.dispose();
           if (outputImage) outputImage.dispose();
         }
         const progress = Math.min(1, (offsetY + bandHeight) / height);
-        executionContext.reportProgress({value: progress, commandName: "生成 MeiNoise 预览"});
+        executionContext.reportProgress({value: progress, commandName: t("commandRenderProgress")});
         if (onProgress) onProgress(progress);
       }
       await executionContext.hostControl.resumeHistory(suspension, true);
@@ -389,7 +390,7 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
       await executionContext.hostControl.resumeHistory(suspension, false);
       throw error;
     }
-  }, {commandName: "Update MeiNoise preview"});
+  }, {commandName: t("commandUpdatePreview")});
 }
 
 async function cancelPreview(target, previewId) {
@@ -398,17 +399,17 @@ async function cancelPreview(target, previewId) {
   // deleted target be replaced by a newly selected layer without trapping the UI.
   const document = target && documentById(target.documentId);
   if (!document) return;
-  await core.executeAsModal(async () => deleteLayerById(document, previewId), {commandName: "Cancel MeiNoise"});
+  await core.executeAsModal(async () => deleteLayerById(document, previewId), {commandName: t("commandCancelPreview")});
 }
 
 async function applyPreview(target, previewId) {
-  if (!previewId) throw new Error("请先生成预览。");
+  if (!previewId) throw new Error(t("noPreview"));
   const resolved = resolveTarget(target);
   await core.executeAsModal(async () => {
     const layer = findLayer(resolved.document.layers, previewId);
-    if (!layer) throw new Error("预览图层已不存在，请重新生成。");
+    if (!layer) throw new Error(t("previewMissing"));
     layer.name = GRAIN_PREFIX + target.name;
-  }, {commandName: "Apply MeiNoise"});
+  }, {commandName: t("commandApplyPreview")});
 }
 
 async function setPreviewVisibility(target, previewId, visible) {
@@ -417,7 +418,7 @@ async function setPreviewVisibility(target, previewId, visible) {
   await core.executeAsModal(async () => {
     const layer = findLayer(resolved.document.layers, previewId);
     if (layer) layer.visible = visible;
-  }, {commandName: visible ? "Show MeiNoise preview" : "Hide MeiNoise preview"});
+  }, {commandName: visible ? t("commandShowPreview") : t("commandHidePreview")});
 }
 
 module.exports = {

@@ -1,4 +1,8 @@
-const {entrypoints, versions, shell} = require("uxp");
+const {entrypoints, versions, shell, host} = require("uxp");
+const {setLocale, getLanguage, t} = require("./i18n.js");
+
+setLocale((host && (host.uiLocale || host.locale)) ||
+  (typeof navigator !== "undefined" && navigator.language) || "en");
 
 // Keep the panel controls usable even if Photoshop rejects a host API while
 // loading the adapter. The adapter is loaded only when an operation needs it.
@@ -31,6 +35,33 @@ const state = {
 };
 
 function byId(id) { return document.getElementById(id); }
+
+function applyLocale() {
+  document.documentElement.lang = getLanguage() === "zh" ? "zh-CN" : "en";
+  const text = {
+    subtitle: "subtitle",
+    bootError: "bootError",
+    analyze: "analyze",
+    manual: "manualAnalyze",
+    hint: "analysisHint",
+    manualGuideTitle: "manualGuideTitle",
+    manualGuide1: "manualGuide1",
+    manualGuide2: "manualGuide2",
+    manualGuide3: "manualGuide3",
+    manualGuide4: "manualGuide4",
+    manualGuide5: "manualGuide5",
+    ready: "status"
+  };
+  for (const [key, id] of Object.entries(text)) byId(id).textContent = t(key);
+  byId("copyrightButton").setAttribute("aria-label", t("copyrightLabel"));
+  byId("manualAnalyze").setAttribute("title", t("manualTitle"));
+  byId("infoButton").setAttribute("aria-label", t("infoLabel"));
+  for (const id of Object.keys(CONTROL_SPECS)) {
+    byId(id).setAttribute("aria-label", t("numericValue", {name: id[0].toUpperCase() + id.slice(1)}));
+    byId(CONTROL_SPECS[id].inputId).setAttribute("aria-label",
+      t("numericValue", {name: id[0].toUpperCase() + id.slice(1)}));
+  }
+}
 
 function setStatus(message, isError = false) {
   const status = byId("status");
@@ -90,10 +121,10 @@ function explainError(error) {
 
 function setManualSelectionStage(awaiting) {
   state.awaitingManualSelection = awaiting;
-  byId("manualAnalyze").textContent = awaiting ? "取消采集" : "手动采集样本";
+  byId("manualAnalyze").textContent = awaiting ? t("manualCancel") : t("manual");
   byId("analysisHint").textContent = awaiting
-    ? "请在画面中框选干净背景；松开鼠标后会立即分析并生成。"
-    : "自动匹配周边背景并立即生成；也可手动框选样本。";
+    ? t("manualPrompt")
+    : t("hint");
   updateAvailability();
 }
 
@@ -140,17 +171,17 @@ async function beginManualSelection() {
   if (state.busy) return;
   if (state.awaitingManualSelection) {
     setManualSelectionStage(false);
-    setStatus("已取消手动背景采集。");
+    setStatus(t("manualCancelled"));
     return;
   }
   setBusy(true);
-  setStatus("正在准备手动背景选区……");
+  setStatus(t("preparingManual"));
   try {
     await ensureTarget();
     await photoshop().listenForBackgroundSelection(onBackgroundSelectionChanged);
     await photoshop().activateBackgroundSelectionTool();
     setManualSelectionStage(true);
-    setStatus("请框选干净背景；松开鼠标后会自动生成噪点。");
+    setStatus(t("manualStatus"));
   } catch (error) {
     setManualSelectionStage(false);
     explainError(error);
@@ -181,7 +212,7 @@ async function analyze(useSelection = false) {
   // Discard a stale slider render so it cannot run again afterwards.
   cancelScheduledRender();
   setBusy(true);
-  setStatus(useSelection ? "正在分析手动背景样本……" : "正在自动匹配并生成噪点……");
+  setStatus(useSelection ? t("analyzingManual") : t("analyzingAuto"));
   let succeeded = false;
   let previewWasHidden = false;
   try {
@@ -199,16 +230,18 @@ async function analyze(useSelection = false) {
     state.structure = result.structure;
     state.aspect = result.aspect || 1;
     updateOutputs();
-    const confidence = result.confidence >= 0.7 ? "高" : result.confidence >= 0.4 ? "中" : "低";
+    const confidence = result.confidence >= 0.7 ? t("confidenceHigh") :
+      result.confidence >= 0.4 ? t("confidenceMedium") : t("confidenceLow");
     const completeTone = result.tonalCoverage >= 3;
     const resultNode = byId("analysisResult");
-    const source = useSelection ? "选区" : `${result.patchCount || 1} 个周边样本`;
-    const textureNote = result.textureScore >= 0.35 ? " · 已抑制纹理干扰" : "";
+    const source = useSelection ? t("selectionSource") :
+      t("surroundingSource", {count: result.patchCount || 1});
+    const textureNote = result.textureScore >= 0.35 ? t("textureSuppressed") : "";
     resultNode.textContent = completeTone
-      ? `已从${source}匹配颗粒 · 明暗响应完整${textureNote} · 置信度${confidence}`
-      : `已从${source}匹配颗粒 · 明暗响应部分使用默认值${textureNote} · 置信度${confidence}`;
+      ? t("resultComplete", {source, texture: textureNote, confidence})
+      : t("resultPartial", {source, texture: textureNote, confidence});
     resultNode.classList.remove("hidden");
-    setStatus("噪点已匹配，正在生成图层……");
+    setStatus(t("generatingLayer"));
     succeeded = true;
   } catch (error) {
     explainError(error);
@@ -231,11 +264,11 @@ async function render() {
     return;
   }
   setBusy(true);
-  setStatus("正在更新预览……");
+  setStatus(t("updatingPreview"));
   try {
     await ensureTarget();
     state.previewId = await photoshop().renderPreview(state.target, settings(), state.previewId);
-    setStatus("预览已更新。");
+    setStatus(t("previewUpdated"));
   } catch (error) {
     explainError(error);
   } finally {
@@ -310,6 +343,7 @@ async function openCopyrightSite(event) {
 function wirePanel() {
   if (state.wired) return;
   state.wired = true;
+  applyLocale();
   byId("analyze").addEventListener("click", () => analyze(false));
   byId("manualAnalyze").addEventListener("click", beginManualSelection);
   byId("infoButton").addEventListener("click", (event) => togglePopover(event, "infoButton", "infoPopover"));

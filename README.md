@@ -1,34 +1,26 @@
 # MeiNoise
 
-MeiNoise 是一个开源 Photoshop UXP 插件。它自动从目标图层周边估算颗粒的强度、空间大小、彩色成分和明暗响应，再把颗粒生成为目标图层上方的独立剪贴图层。
+[中文](#中文) · [English](#english)
 
-## 当前功能
+## 中文
 
-- Photoshop RGB 8-bit / 16-bit 文档
-- 自动使用并锁定当前图层；切换图层后自动切换目标
-- 自动分析目标图层四周的多个原尺寸背景块；手动大选区也按原尺寸分块采样
-- 大图限制采样总量，小图自动扩大搜索范围
-- 使用“手动采集样本”框选矩形或不规则背景选区作为兜底
-- 自动估算 Amount、Size、隐藏的相关结构、Chroma 和三段明暗响应
-- Amount / Size / Chroma 手动微调并自动预览
-- 0–255 可重现 Seed
-- 分块渲染，避免为整张大图一次性分配多个完整缓冲区
-- Linear Light 中性灰颗粒层，并剪贴到目标图层
-- 生成结果保留为可编辑的独立颗粒层
+MeiNoise 是一个开源 Photoshop UXP 插件，用于让合成图层的数码摄影噪点与周围背景更一致。它分析目标图层周边或用户选定的背景样本，估算噪点强度、空间相关尺度、成团程度、通道相关性和明暗响应，再生成独立的 Linear Light 中性灰剪贴层。
 
-## 安装与开发加载
+### 功能
 
-要求 Photoshop 25.0 或更新版本以及 Adobe UXP Developer Tool。
+- 支持 Photoshop RGB 8-bit / 16-bit 文档。
+- 自动分析目标图层四周的多个原尺寸背景块。
+- 可手动框选矩形或不规则背景区域作为样本。
+- 自动估算 Amount、Size、隐藏的 Structure、Chroma、方向性和三段明暗响应。
+- Amount、Size、Chroma、Seed 可直接输入或拖动调节，并自动更新。
+- 使用确定性 Seed，可重复生成同一颗粒排列。
+- 按 192 像素高的条带渲染大图，避免整图多缓冲区占用。
+- 输出为目标图层上方的独立剪贴颗粒层，不改写目标像素。
+- 中文 Photoshop 显示中文；其他界面语言自动显示英文。
 
-1. 下载或克隆本仓库。
-2. 打开 UXP Developer Tool。
-3. 选择 **Add Plugin**，打开仓库根目录的 `manifest.json`。
-4. 点击 **Load**。
-5. 在 Photoshop 的 **Plugins** 菜单中打开 **MeiNoise**。
+### 安装
 
-插件不依赖 Creative Cloud Marketplace，也没有运行时 npm 依赖。
-
-### 命令行打包与永久安装（Windows）
+要求 Photoshop 25.0 或更新版本。
 
 生成 CCX：
 
@@ -36,56 +28,257 @@ MeiNoise 是一个开源 Photoshop UXP 插件。它自动从目标图层周边�
 powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 ```
 
-使用 Adobe Unified Plugin Installer Agent 永久安装：
+使用 Adobe Unified Plugin Installer Agent 安装：
 
 ```powershell
 & "C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe" /install "E:\MeiNoise\dist\MeiNoise.ccx"
 ```
 
-安装完成后重新启动 Photoshop，然后从 **插件（Plugins）> MeiNoise** 打开面板。
+开发加载时，在 Adobe UXP Developer Tool 中选择仓库根目录的 `manifest.json`。
 
-## 使用方法
+### 使用
 
-1. 在图层面板选择要添加颗粒的图层。
-2. 直接拖动 Amount、Size、Chroma 或 Seed；插件会自动记录当前图层并生成预览。
-3. 点击 **自动生成噪点**。插件会从图层四周筛选原尺寸样本，匹配参数并立即生成噪点图层。
-4. 如需前后对比，可在图层面板切换 MeiNoise 颗粒层的可见性。
+1. 选择需要添加颗粒的目标图层。
+2. 点击“自动生成噪点”，或先点击“手动采集样本”并框选干净背景。
+3. 调节 Amount、Size、Chroma 和 Seed；颗粒层会自动更新。
+4. 在图层面板切换 MeiNoise 颗粒层可见性即可比较前后效果。
 
-如果目标图层铺满画布或周围没有足够背景，可点击 **手动采集样本**，再在画面中框选背景；松开鼠标后会自动分析并生成。再次点击按钮可以取消等待采集。如果样本只覆盖单一亮度，未覆盖的明暗响应会使用稳健回退值。
+### 参数
 
-## 参数含义
+- **Amount**：最终颗粒的近似标准差强度，界面范围为 0–12%。
+- **Size**：空间相关模型的视觉尺度，单位为文档像素，范围为 0.5–6 px；它不是单独的“颗粒宽度”或“密度”。
+- **Chroma**：RGB 通道独立噪点的混合比例。0% 为完全共用的亮度颗粒，100% 为高度独立的彩色颗粒。
+- **Seed**：0–255 的确定性排列编号。
+- **Structure（隐藏）**：白噪声分量与高斯相关成团分量的能量混合比例。
+- **Aspect（隐藏）**：横纵相关尺度之比；只有多个样本对同一方向达成一致时才启用。
+- **Tone curve（隐藏）**：暗部、中间调和亮部三个噪点增益锚点，渲染时平滑插值。
 
-- **Amount**：最终可见颗粒的近似强度。
-- **Size**：颗粒空间相关尺度，单位为文档像素。
-- **Chroma**：RGB 通道彼此独立的颗粒比例；0% 为纯亮度颗粒。
-- **Seed**：0–255 的颗粒排列编号；同一个 Seed 始终得到相同排列。
+### 当前颗粒算法
 
-明暗响应由背景样本自动估算，不额外占用主界面。三个响应值对应暗、中、亮区间的中心，并在区间之间平滑过渡；如果样本没有覆盖三段亮度，缺少的区间使用稳健回退值。
+#### 1. 自动与手动采样
 
-## 已知限制
+自动模式根据目标图层短边选择 24–128 px 的方形样本，在图层上、下、左、右的 18%、50%、82% 位置取样，最多保留 24 块。很小的目标会额外搜索较远的一圈；铺满画布且四周没有空间时提示改用手动采样。手动模式把选区切成最多 4×4 个原分辨率样本，每块最大 128×128 px。所有分析保持文档原始像素尺度，不先缩图。
 
-- 暂不支持 CMYK、Lab、灰度和 32-bit 文档。
-- Size 是视觉匹配参数，不代表胶片乳剂颗粒的物理直径。
-- 极强纹理、压缩伪影和锐化光晕仍可能影响分析；自动模式会偏向较低噪声的稳定样本，必要时可用“手动”按钮框选更平坦的背景。
-- 如果目标图层本身已经属于另一个剪贴组，Photoshop 的剪贴组规则可能使颗粒层继承该组的底层范围，而不是目标图层自身的透明度。普通带透明度或图层蒙版的基础图层不受影响。
-- 参数数字会立即变化；画布预览在拖动短暂停顿后自动分块更新，不是 GPU 逐帧着色器。
+#### 2. 去趋势与稳健残差
 
-## 算法与许可证
+RGB 先归一化到 0–1。每个通道用积分图计算局部方框均值，再从像素中减去均值得到高频残差。分析同时使用半径 3 和半径 8 的窗口：小窗口主要测量细噪点，大窗口用于判断宽纹理是否把 Size 或 Amount 虚高。
 
-项目代码从头实现并以 MIT 许可证发布，没有复制 GPL 插件代码。总体设计参考了以下公开资料：
+亮度使用 Rec.709 权重 `0.2126 R + 0.7152 G + 0.0722 B`。过强亮度残差和色差残差先被剔除，随后使用 MAD 稳健标准差：
 
-- [Adobe UXP Photoshop plugin samples](https://github.com/AdobeDocs/uxp-photoshop-plugin-samples)（MIT）：UXP 插件结构与 Photoshop API 用法。
-- [cinegrain](https://github.com/mr-berndt/cinegrain)（MIT）：多尺度颗粒和亮度响应的设计思路。MeiNoise 使用自己实现的随机哈希。
-- [SVT-AV1 film grain synthesis documentation](https://github.com/AOMediaCodec/SVT-AV1/blob/master/Docs/Appendix-Film-Grain-Synthesis.md)：从去噪残差估算颗粒模型的思路。
+```text
+sigma = 1.4826 × median(|x - median(x)|)
+```
 
-MeiNoise 的分析器同时比较短、长两个去趋势窗口，避免把背景纹理直接解释为粗噪声；随后使用横纵两个方向的多距离自相关、RGB 残差关系和分亮度统计。生成器把细噪声与能量归一化的高斯相关噪声混合：Size 控制视觉相关宽度，隐藏结构参数控制成团分量的权重；只有多个样本对方向性的判断一致并显著改善拟合时，才使用受限的横纵长宽比。它不是相机、ISO 或焦距数据库；直接匹配最终背景像素通常更符合合成工作流。
+第二轮只保留 `|residual| <= max(4.5 × sigma, 2 / channelMax)` 的样本。少于 128 个有效像素时，该块被判为不可用。
 
-## 测试
+#### 3. Size、Structure 与方向拟合
 
-纯算法模块可以在 Node.js 中测试：
+对清理后的亮度残差分别计算横向和纵向 1–6 像素延迟的归一化自相关。拟合模型是两个分量的能量混合：
+
+```text
+noise = sqrt(1 - structure) × white
+      + sqrt(structure) × normalizedGaussianBlur(white)
+```
+
+各候选模型经过与分析相同的局部去趋势，再比较预测自相关与观测自相关。各向同性网格搜索：
+
+- Size：0.5–6，步长 0.25。
+- Structure：0–1，步长 0.1。
+
+随后在最佳值附近测试受限方向比例 `2/3, 0.75, 0.8, 0.9, 1.1, 1.25, 4/3, 1.5`。只有方向模型至少改善 15%、样本纹理分数低于 0.35、并且至少 65% 的入选样本同意同一方向时，最终模型才使用 Aspect；否则保持 1:1。
+
+#### 4. Amount、Chroma 与明暗响应
+
+Amount 由稳健残差标准差除以拟合模型经过同样去趋势后的理论标准差得到，因此 Size 或 Structure 改变时不会无意改变总体能量。
+
+Chroma 根据 RR、RG、RB 三个通道残差的两两相关系数估算：通道越相关，越接近亮度噪点；相关性越低，Chroma 越高。
+
+样本按亮度分为暗、中、亮三段，每段有至少 64 个样本才单独估算增益；缺失段使用总体稳健值。三个增益限制在 0.45–2.2，渲染时使用 smoothstep 平滑插值。
+
+#### 5. 多样本聚合与纹理抑制
+
+场景纹理通常只会把噪点估计推高，因此聚合器不直接取所有样本平均值。它先按 Amount 排序，以约第 35 百分位为锚点，仅保留与锚点相差不超过 `max(0.45, 0.75 × anchor)` 的样本，至少保留最多三个最接近者。参数按有效像素数和置信度加权。半径 8 相对半径 3 的 Size、Amount、Structure 膨胀量组成 Texture Score，并降低受污染样本的置信度。
+
+#### 6. 确定性颗粒合成
+
+生成器用全局 `(x, y, seed)` 整数哈希产生可重复的均匀随机数，叠加六次后近似高斯分布。白噪声同时进入脉冲分量和可分离高斯模糊分量；卷积核能量及两分量交叉项均被归一化，因此调节 Size 和 Structure 时 Amount 尽量保持稳定。
+
+Chroma 使用一个共用噪声场和三个独立 RGB 噪声场，以平方根权重混合，并按 Rec.709 亮度能量再次归一化。最终噪点围绕 50% 中性灰生成，应用明暗增益后写入 Linear Light 图层。透明度不在生成器中二次相乘；Photoshop 剪贴层负责目标透明边缘，避免出现 alpha 平方导致的干净光圈。
+
+#### 7. 分块渲染与事务
+
+大图按 192 px 高的条带处理。随机场使用文档全局坐标并为卷积读取足够的上下左右 padding，因此条带边界保持连续。一次更新被包装在 Photoshop 暂停历史事务中；失败或取消时回滚，成功时只留下一个历史步骤。所有 Imaging API 缓冲区都在 `finally` 中释放。
+
+### 开发约束与回归测试
+
+继续开发时应保持以下不变量：
+
+- 分析器与生成器必须使用相同的相关核、去趋势方式和能量定义。
+- Size/Structure 改变不应显著改变输出标准差。
+- 相同 Seed 与全局坐标必须得到相同噪点，分块边界不得出现接缝。
+- 自动聚合不得让单个强纹理块主导结果。
+- 剪贴层不得再次乘目标 Alpha。
+- 8-bit 和 16-bit 输出、异常回滚、语言切换都必须通过测试。
+
+运行：
 
 ```powershell
 npm test
 ```
 
-Photoshop API 适配层仍需通过 UXP Developer Tool 在 Photoshop 内验证。
+### 已知限制
+
+- 不支持 CMYK、Lab、灰度和 32-bit 文档。
+- 极强纹理、JPEG 块效应、锐化光晕或降噪涂抹仍可能污染估计。
+- 当前模型描述的是最终图像中的相关数码噪点，不是相机型号、ISO、曝光或胶片乳剂的物理模型。
+- 方向模型只允许有限长宽比，不描述行噪声、固定图样噪声和热像素。
+- 如果目标本身属于复杂剪贴组，Photoshop 的剪贴规则可能改变最终作用范围。
+- 预览是 CPU 分块生成，不是 GPU 逐帧着色器。
+
+### 许可证与参考
+
+代码以 MIT 许可证发布，并从头实现。设计参考：
+
+- [Adobe UXP Photoshop plugin samples](https://github.com/AdobeDocs/uxp-photoshop-plugin-samples)
+- [cinegrain](https://github.com/mr-berndt/cinegrain)
+- [SVT-AV1 film grain synthesis documentation](https://github.com/AOMediaCodec/SVT-AV1/blob/master/Docs/Appendix-Film-Grain-Synthesis.md)
+
+---
+
+## English
+
+MeiNoise is an open-source Photoshop UXP plugin for matching the digital photographic noise of a composited layer to its surrounding background. It analyzes nearby or manually selected background samples, estimates amplitude, spatial correlation, clustering, channel correlation, and tonal response, then generates a separate clipped neutral-gray Linear Light layer.
+
+### Features
+
+- Photoshop RGB 8-bit and 16-bit documents.
+- Automatic native-resolution sampling around the target layer.
+- Manual rectangular or irregular background selections.
+- Automatic estimation of Amount, Size, hidden Structure, Chroma, directionality, and a three-point tonal response.
+- Direct numeric entry and sliders for Amount, Size, Chroma, and Seed.
+- Deterministic Seed values for reproducible grain placement.
+- 192-pixel render bands to bound memory use on large documents.
+- A separate clipped grain layer; target pixels are never rewritten.
+- Chinese UI in Chinese Photoshop and English UI in every other host locale.
+
+### Installation
+
+Photoshop 25.0 or newer is required.
+
+Build the CCX:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
+```
+
+Install it with Adobe Unified Plugin Installer Agent:
+
+```powershell
+& "C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe" /install "E:\MeiNoise\dist\MeiNoise.ccx"
+```
+
+For development, add the repository-root `manifest.json` in Adobe UXP Developer Tool.
+
+### Usage
+
+1. Select the layer that needs grain.
+2. Choose “Generate Grain,” or choose “Sample Manually” and select clean background.
+3. Adjust Amount, Size, Chroma, and Seed; the grain layer updates automatically.
+4. Toggle the MeiNoise layer in the Layers panel to compare before and after.
+
+### Parameters
+
+- **Amount:** approximate standard-deviation amplitude of visible grain, 0–12%.
+- **Size:** visual scale of the spatial correlation model in document pixels, 0.5–6 px. It is not independently a particle width or density control.
+- **Chroma:** mixture of channel-independent noise. At 0%, every channel shares luminance grain; higher values add independent RGB variation.
+- **Seed:** deterministic placement index from 0 to 255.
+- **Structure (hidden):** energy mixture between white noise and the Gaussian-correlated clustered component.
+- **Aspect (hidden):** horizontal-to-vertical correlation ratio, enabled only when multiple samples agree.
+- **Tone curve (hidden):** shadow, midtone, and highlight gain anchors with smooth interpolation.
+
+### Current grain algorithm
+
+#### 1. Automatic and manual sampling
+
+Automatic mode derives 24–128 px square patches from the target's short edge and samples above, below, left, and right at 18%, 50%, and 82% positions, retaining at most 24 patches. Tiny targets add a farther search ring. Manual mode divides the selection into at most 4×4 native-resolution patches, each no larger than 128×128 px. Analysis never downsamples first.
+
+#### 2. Detrending and robust residuals
+
+RGB is normalized to 0–1. Integral images provide a local box mean per channel, which is subtracted to obtain high-frequency residuals. Radius-3 and radius-8 analyses are compared: the compact radius measures fine noise, while the broad radius detects scene texture that inflates Size or Amount.
+
+Luminance uses Rec.709 weights, `0.2126 R + 0.7152 G + 0.0722 B`. Strong luminance and chroma residuals are rejected before a MAD estimate:
+
+```text
+sigma = 1.4826 × median(|x - median(x)|)
+```
+
+A second pass keeps `|residual| <= max(4.5 × sigma, 2 / channelMax)`. A patch with fewer than 128 valid pixels is rejected.
+
+#### 3. Size, Structure, and direction fitting
+
+Normalized horizontal and vertical autocorrelation is measured at lags 1–6. The fitted model is an energy mixture:
+
+```text
+noise = sqrt(1 - structure) × white
+      + sqrt(structure) × normalizedGaussianBlur(white)
+```
+
+Every candidate is passed through the same detrending operator before its predicted correlation is compared with observation. The isotropic grid searches Size 0.5–6 in 0.25 steps and Structure 0–1 in 0.1 steps.
+
+A local second pass tests aspect ratios `2/3, 0.75, 0.8, 0.9, 1.1, 1.25, 4/3, 1.5`. Directionality is accepted only when it improves fit by at least 15%, the patch texture score is below 0.35, and at least 65% of selected patches agree on the same orientation.
+
+#### 4. Amount, Chroma, and tonal response
+
+Amount is the robust residual deviation divided by the theoretical post-detrending deviation of the fitted model. This prevents Size or Structure from unintentionally changing total energy.
+
+Chroma comes from pairwise RR/RG/RB residual correlation: strong cross-channel correlation implies luminance noise, while weak correlation increases Chroma.
+
+Samples are divided into shadow, midtone, and highlight bins. A bin needs at least 64 samples for an independent estimate; missing bins fall back to the global robust value. Gains are clamped to 0.45–2.2 and interpolated with smoothstep.
+
+#### 5. Multi-patch aggregation and texture suppression
+
+Texture usually biases a noise estimate upward, so patches are not averaged blindly. Analyses are sorted by Amount; approximately the 35th percentile becomes the anchor, and only patches within `max(0.45, 0.75 × anchor)` are retained, with up to three nearest patches as a minimum fallback. Weight combines valid-pixel count and confidence. Inflation between radius-3 and radius-8 estimates forms a Texture Score that reduces contaminated-patch confidence.
+
+#### 6. Deterministic synthesis
+
+A global integer hash of `(x, y, seed)` produces reproducible uniform values; summing six values approximates Gaussian noise. The same white field feeds an impulse branch and a separable Gaussian branch. Kernel energy and branch cross-energy are normalized, keeping Amount approximately stable as Size and Structure change.
+
+Chroma mixes one shared field with three independent RGB fields using square-root weights, followed by Rec.709 luminance-energy normalization. Output is centered on 50% gray, multiplied by the tonal gain, and written to a Linear Light layer. Target alpha is deliberately not multiplied again; Photoshop's clipping mask applies it once and avoids alpha-squared clean fringes.
+
+#### 7. Banded rendering and transactions
+
+Large targets render in 192 px bands. Noise uses global document coordinates and sufficient convolution padding, so band boundaries remain seamless. Each update runs inside a suspended Photoshop history transaction: failure or cancellation rolls back, while success creates one history step. Imaging buffers are disposed in `finally` blocks.
+
+### Development invariants and regression tests
+
+Future work should preserve these invariants:
+
+- Analysis and synthesis use the same correlation kernel, detrending operation, and energy definition.
+- Changing Size or Structure must not substantially change output deviation.
+- Equal Seed and global coordinates produce equal noise, with no band seams.
+- One textured patch must not dominate automatic aggregation.
+- Target alpha is not applied twice.
+- 8-bit/16-bit output, rollback behavior, and locale switching remain tested.
+
+Run:
+
+```powershell
+npm test
+```
+
+### Known limitations
+
+- CMYK, Lab, grayscale, and 32-bit documents are unsupported.
+- Strong texture, JPEG blocking, sharpening halos, and denoising smears can still contaminate estimates.
+- The model describes correlated digital noise in the final image, not camera model, ISO, exposure, or physical film emulsion.
+- Limited aspect ratios cannot describe row noise, fixed-pattern noise, or hot pixels.
+- Complex pre-existing clipping groups may alter the final clipping scope.
+- Preview rendering is CPU-banded, not a frame-by-frame GPU shader.
+
+### License and references
+
+The project is released under the MIT License and implemented from scratch. Design references:
+
+- [Adobe UXP Photoshop plugin samples](https://github.com/AdobeDocs/uxp-photoshop-plugin-samples)
+- [cinegrain](https://github.com/mr-berndt/cinegrain)
+- [SVT-AV1 film grain synthesis documentation](https://github.com/AOMediaCodec/SVT-AV1/blob/master/Docs/Appendix-Film-Grain-Synthesis.md)

@@ -15,7 +15,8 @@ test("panel loads a root external controller from the head", () => {
 
   const bootstrap = fs.readFileSync(path.join(root, "main.js"), "utf8");
   assert.match(bootstrap, /require\("\.\/src\/main\.js"\)/);
-  assert.match(bootstrap, /MeiNoise 启动失败/);
+  assert.match(bootstrap, /t\("startupError", \{message\}\)/);
+  assert.match(bootstrap, /require\("\.\/src\/i18n\.js"\)/);
 });
 
 test("compact panel exposes every agreed interaction", () => {
@@ -59,7 +60,10 @@ test("compact panel exposes every agreed interaction", () => {
   assert.match(styles, /input\[type="number"\]:focus[^}]*border-color:\s*#2680eb/);
   assert.match(controller, /onNumberInput/);
   assert.match(controller, /commitNumberInput/);
-  assert.match(controller, /awaitingManualSelection[\s\S]*取消采集/);
+  assert.match(controller, /host\.uiLocale \|\| host\.locale/);
+  assert.match(controller, /function applyLocale\(\)/);
+  assert.match(controller, /t\("numericValue"/);
+  assert.match(controller, /awaitingManualSelection[\s\S]*t\("manualCancel"\)/);
   assert.match(controller, /function cancelScheduledRender\(\)/);
   assert.match(controller, /cancelScheduledRender\(\);[\s\S]*setBusy\(true\)/);
   assert.doesNotMatch(html, /id=["']setTarget["']/);

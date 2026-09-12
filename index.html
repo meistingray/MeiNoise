@@ -11,10 +11,10 @@
     <header>
       <div class="brand-row">
         <h1>MeiNoise</h1>
-        <span id="pluginVersion" class="plugin-version">v0.3.6</span>
+        <span id="pluginVersion" class="plugin-version">v0.4.0</span>
         <button id="copyrightButton" class="info-button copyright-button" type="button" aria-label="版权信息" aria-expanded="false">ⓘ</button>
       </div>
-      <p class="subtitle">选择图层 → 自动生成噪点 → 调节参数，实时更新</p>
+      <p id="subtitle" class="subtitle">选择图层 → 自动生成噪点 → 调节参数，实时更新</p>
       <div id="copyrightPopover" class="info-popover copyright-popover hidden" role="note">
         © 2026 MeiStingray, Kicity* Studio,
         <a id="copyrightLink" href="https://www.kicity.com">www.kicity.com</a>
@@ -33,13 +33,13 @@
         </div>
         <p id="analysisHint" class="hint">自动匹配周边背景并立即生成；也可手动框选样本。</p>
         <div id="infoPopover" class="info-popover hidden" role="note">
-          <strong>如何手动采集背景样本</strong>
+          <strong id="manualGuideTitle">如何手动采集背景样本</strong>
           <ol>
-            <li>优先选择靠近贴入图层和融合边缘的区域。</li>
-            <li>选择低纹理、清晰度和处理状态相同的原图背景。</li>
-            <li>避开头发、树叶、文字、锐利边缘和密集纹理。</li>
-            <li>样本面积越大，分析通常越稳定。</li>
-            <li>可按住 Shift 添加暗部、中间调和亮部样本。</li>
+            <li id="manualGuide1">优先选择靠近贴入图层和融合边缘的区域。</li>
+            <li id="manualGuide2">选择低纹理、清晰度和处理状态相同的原图背景。</li>
+            <li id="manualGuide3">避开头发、树叶、文字、锐利边缘和密集纹理。</li>
+            <li id="manualGuide4">样本面积越大，分析通常越稳定。</li>
+            <li id="manualGuide5">可按住 Shift 添加暗部、中间调和亮部样本。</li>
           </ol>
         </div>
         <div id="analysisResult" class="analysis hidden"></div>

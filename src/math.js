@@ -1,5 +1,13 @@
 /* Pure image math. Kept independent from UXP so it can be tested with Node. */
 
+const {t} = require("./i18n.js");
+
+function grainError(key, code) {
+  const error = new Error(t(key));
+  error.code = code;
+  return error;
+}
+
 function clamp(value, low, high) {
   return Math.max(low, Math.min(high, value));
 }
@@ -43,7 +51,7 @@ function normalizedMedianSpread(items, readValue, floor) {
  */
 function combineGrainAnalyses(analyses) {
   if (!analyses || !analyses.length) {
-    throw new Error("图层周围没有足够的可用背景。可扩大画布，或点击“手动”框选背景样本。");
+    throw grainError("noUsableBackground", "MEINOISE_NO_USABLE_BACKGROUND");
   }
   const sorted = analyses.slice().sort((a, b) => a.amount - b.amount);
   const anchor = sorted[Math.floor((sorted.length - 1) * 0.35)].amount;
@@ -291,7 +299,7 @@ function fitCorrelationModel(observedX, observedY, detrendRadius) {
 function analyzeGrain(options) {
   const {data, width, height, components, componentSize, mask, documentScale = 1, analysisRadius} = options;
   if (width < 8 || height < 8 || components < 3) {
-    throw new Error("样本太小，请选择至少 8×8 像素的背景区域。");
+    throw grainError("sampleSmall", "MEINOISE_SAMPLE_TOO_SMALL");
   }
   const maxValue = componentSize === 16 ? 65535 : 255;
   const lumaResiduals = [];
@@ -328,7 +336,7 @@ function analyzeGrain(options) {
   }
 
   if (lumaResiduals.length < 128) {
-    throw new Error("有效样本不足。请扩大选区，并避开明显边缘或纹理。");
+    throw grainError("insufficientSamples", "MEINOISE_INSUFFICIENT_SAMPLES");
   }
 
   // A second robust pass rejects textured outliers.
