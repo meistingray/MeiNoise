@@ -22,19 +22,40 @@ MeiNoise 是一个开源 Photoshop UXP 插件，用于让合成图层的数码�
 
 要求 Photoshop 25.0 或更新版本。
 
-生成 CCX：
+#### 推荐：通过 Creative Cloud Desktop 安装
+
+1. 从 [GitHub Releases](https://github.com/meistingray/MeiNoise/releases/latest) 下载 `MeiNoise.ccx`。
+2. 关闭 Photoshop，然后双击 `MeiNoise.ccx`。Creative Cloud Desktop 会自动打开。
+3. 阅读“非 Marketplace 插件”警告；确认文件来自本项目后，选择**安装**。
+4. 安装成功后重新打开 Photoshop，在**插件 > MeiNoise** 中打开面板。
+
+已安装的插件可在 Creative Cloud Desktop 的**插件 > 管理插件**中禁用或卸载。参见 [Adobe 官方 UXP 插件安装指南](https://developer.adobe.com/uxp/guides/how-to/distribution/install/)。
+
+#### 备选：使用 UPIA 命令行安装
+
+UPIA 适合 Creative Cloud Desktop 未能关联 `.ccx`、离线环境或管理员部署。下面的 `<path-to-MeiNoise.ccx>` 应替换为用户实际下载位置，不要求项目位于特定磁盘或文件夹。
+
+Windows PowerShell：
+
+```powershell
+$upia = Join-Path $env:CommonProgramFiles "Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe"
+& $upia /install "<path-to-MeiNoise.ccx>"
+```
+
+macOS Terminal：
+
+```bash
+UPIA="/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent"
+"$UPIA" --install "<path-to-MeiNoise.ccx>"
+```
+
+#### 开发与本地打包
+
+在 Adobe UXP Developer Tool 中选择仓库根目录的 `manifest.json`。在仓库根目录运行以下命令，安装包会生成到当前仓库的 `dist/MeiNoise.ccx`，无需固定绝对路径：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 ```
-
-使用 Adobe Unified Plugin Installer Agent 安装：
-
-```powershell
-& "C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe" /install "E:\MeiNoise\dist\MeiNoise.ccx"
-```
-
-开发加载时，在 Adobe UXP Developer Tool 中选择仓库根目录的 `manifest.json`。
 
 ### 使用
 
@@ -165,19 +186,40 @@ MeiNoise is an open-source Photoshop UXP plugin for matching the digital photogr
 
 Photoshop 25.0 or newer is required.
 
-Build the CCX:
+#### Recommended: install through Creative Cloud Desktop
+
+1. Download `MeiNoise.ccx` from [GitHub Releases](https://github.com/meistingray/MeiNoise/releases/latest).
+2. Quit Photoshop, then double-click `MeiNoise.ccx`. Creative Cloud Desktop opens automatically.
+3. Review the warning for a plugin obtained outside Marketplace. If the file came from this project, choose **Install**.
+4. Reopen Photoshop and open the panel from **Plugins > MeiNoise**.
+
+Installed plugins can be disabled or removed under **Plugins > Manage Plugins** in Creative Cloud Desktop. See Adobe's [official UXP plugin installation guide](https://developer.adobe.com/uxp/guides/how-to/distribution/install/).
+
+#### Alternative: install from the UPIA command line
+
+UPIA is useful when `.ccx` files are not associated with Creative Cloud Desktop, for offline systems, or for managed deployment. Replace `<path-to-MeiNoise.ccx>` with the actual downloaded file; the repository does not need to live on a particular drive or in a fixed directory.
+
+Windows PowerShell:
+
+```powershell
+$upia = Join-Path $env:CommonProgramFiles "Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe"
+& $upia /install "<path-to-MeiNoise.ccx>"
+```
+
+macOS Terminal:
+
+```bash
+UPIA="/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent"
+"$UPIA" --install "<path-to-MeiNoise.ccx>"
+```
+
+#### Development and local packaging
+
+Add the repository-root `manifest.json` in Adobe UXP Developer Tool. From the repository root, run the following command; the package is written to `dist/MeiNoise.ccx` inside the current checkout, with no fixed absolute path:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 ```
-
-Install it with Adobe Unified Plugin Installer Agent:
-
-```powershell
-& "C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent\UnifiedPluginInstallerAgent.exe" /install "E:\MeiNoise\dist\MeiNoise.ccx"
-```
-
-For development, add the repository-root `manifest.json` in Adobe UXP Developer Tool.
 
 ### Usage
 
