@@ -6,7 +6,7 @@ MeiNoise 是一个开源 Photoshop UXP 插件。它自动从目标图层周边�
 
 - Photoshop RGB 8-bit / 16-bit 文档
 - 自动使用并锁定当前图层；切换图层后自动切换目标
-- 自动分析目标图层四周的多个原尺寸背景块
+- 自动分析目标图层四周的多个原尺寸背景块；手动大选区也按原尺寸分块采样
 - 大图限制采样总量，小图自动扩大搜索范围
 - 使用“手动采集样本”框选矩形或不规则背景选区作为兜底
 - 自动估算 Amount、Size、隐藏的相关结构、Chroma 和三段明暗响应
@@ -80,7 +80,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 - [cinegrain](https://github.com/mr-berndt/cinegrain)（MIT）：多尺度颗粒和亮度响应的设计思路。MeiNoise 使用自己实现的随机哈希。
 - [SVT-AV1 film grain synthesis documentation](https://github.com/AOMediaCodec/SVT-AV1/blob/master/Docs/Appendix-Film-Grain-Synthesis.md)：从去噪残差估算颗粒模型的思路。
 
-MeiNoise 的分析器使用大范围稳健残差、多个像素距离的自相关、RGB 残差关系和分亮度统计。生成器使用方差归一化的高斯相关噪声：Size 控制视觉相关宽度，自动分析得到的隐藏结构参数控制细碎噪声与成团噪声的比例。它不是相机、ISO 或焦距数据库；直接匹配最终背景像素通常更符合合成工作流。
+MeiNoise 的分析器使用稳健残差、横纵两个方向的多距离自相关、RGB 残差关系和分亮度统计。生成器把细噪声与能量归一化的高斯相关噪声混合：Size 控制视觉相关宽度，隐藏结构参数控制成团分量的权重；只有多个样本对方向性的判断一致并显著改善拟合时，才使用受限的横纵长宽比。它不是相机、ISO 或焦距数据库；直接匹配最终背景像素通常更符合合成工作流。
 
 ## 测试
 

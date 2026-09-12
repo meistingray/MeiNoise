@@ -10,11 +10,13 @@ function photoshop() {
 
 const DEFAULT_TONE_CURVE = [1.18, 1, 0.72];
 const DEFAULT_STRUCTURE = 0.65;
+const DEFAULT_ASPECT = 1;
 const state = {
   target: null,
   previewId: null,
   toneCurve: DEFAULT_TONE_CURVE.slice(),
   structure: DEFAULT_STRUCTURE,
+  aspect: DEFAULT_ASPECT,
   busy: false,
   pendingRender: false,
   renderTimer: null,
@@ -47,7 +49,8 @@ function settings() {
     chroma: Number(byId("chroma").value),
     seed: Number(byId("seed").value),
     toneCurve: state.toneCurve,
-    structure: state.structure
+    structure: state.structure,
+    aspect: state.aspect
   };
 }
 
@@ -104,6 +107,7 @@ async function ensureTarget() {
   state.target = null;
   state.toneCurve = DEFAULT_TONE_CURVE.slice();
   state.structure = DEFAULT_STRUCTURE;
+  state.aspect = DEFAULT_ASPECT;
   setManualSelectionStage(false);
   byId("analysisResult").classList.add("hidden");
   state.target = ps.captureTarget();
@@ -155,6 +159,7 @@ async function analyze(useSelection = false) {
     byId("chroma").value = Math.round(result.chroma);
     state.toneCurve = result.toneCurve;
     state.structure = result.structure;
+    state.aspect = result.aspect || 1;
     updateOutputs();
     const confidence = result.confidence >= 0.7 ? "高" : result.confidence >= 0.4 ? "中" : "低";
     const completeTone = result.tonalCoverage >= 3;

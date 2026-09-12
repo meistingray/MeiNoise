@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const {robustSigma, combineGrainAnalyses, hash2D, toneGain, generateGrainBand, analyzeGrain} = require("../src/math.js");
+const {robustSigma, combineGrainAnalyses, hash2D, toneGain, generateGrainBand, analyzeGrain, correlationKernel} = require("../src/math.js");
 
 test("robustSigma ignores a large outlier", () => {
   const data = [-1, -1, -0.8, -0.5, 0, 0.4, 0.8, 1, 100];
@@ -71,6 +71,48 @@ test("automatic patch aggregation resists a highly textured outlier", () => {
   assert.ok(result.amount < 2.2, `amount was ${result.amount}`);
   assert.equal(result.patchCount, 3);
   assert.equal(result.candidateCount, 4);
+});
+
+test("aggregation enables direction only when several patches agree", () => {
+  const directional = (aspectCandidate) => ({
+    amount: 2, size: 4, structure: 0.7, aspectCandidate,
+    anisotropicAmount: 2.1, anisotropicSize: 4.5, anisotropicStructure: 0.75,
+    anisotropyGain: 0.25, chroma: 12, toneCurve: [1, 1, 1],
+    sampleCount: 2000, confidence: 0.9, tonalCoverage: 3
+  });
+  const agreed = combineGrainAnalyses([directional(0.8), directional(0.82), directional(0.78)]);
+  assert.ok(agreed.aspect < 0.85, `aspect was ${agreed.aspect}`);
+  assert.ok(agreed.size > 4.4, `size was ${agreed.size}`);
+
+  const disputed = combineGrainAnalyses([directional(0.8), directional(1.25), directional(1)]);
+  assert.equal(disputed.aspect, 1);
+  assert.equal(disputed.size, 4);
+});
+
+test("normalized coarse branch makes Size increase spatial persistence", () => {
+  function neighborCorrelation(size, aspect = 1, direction = "x") {
+    const model = correlationKernel(size, 0.65, aspect);
+    const kernelAt = (x, y) => {
+      if (Math.abs(x) > model.radiusX || Math.abs(y) > model.radiusY) return 0;
+      const gaussian = model.weightsX[x + model.radiusX] * model.weightsY[y + model.radiusY] /
+        model.gaussianNormalization;
+      return (model.fineWeight * (x === 0 && y === 0 ? 1 : 0) + model.coarseWeight * gaussian) /
+        model.normalization;
+    };
+    let variance = 0;
+    let covariance = 0;
+    for (let y = -model.radiusY; y <= model.radiusY; y++) {
+      for (let x = -model.radiusX; x <= model.radiusX; x++) {
+        const value = kernelAt(x, y);
+        variance += value * value;
+        covariance += value * kernelAt(x + (direction === "x" ? 1 : 0), y + (direction === "y" ? 1 : 0));
+      }
+    }
+    return covariance / variance;
+  }
+  const measured = [1.5, 3, 5].map((size) => neighborCorrelation(size));
+  assert.ok(measured[0] < measured[1] && measured[1] < measured[2], measured.join(", "));
+  assert.ok(neighborCorrelation(4, 0.8, "y") > neighborCorrelation(4, 0.8, "x"));
 });
 
 test("analysis returns bounded controls for a noisy flat patch", () => {

@@ -204,6 +204,31 @@ test("automatic sample planning stays native-sized and bounded", () => {
   assert.deepEqual(adapter.autoSampleBounds({left: 0, top: 0, right: 200, bottom: 200}, {width: 200, height: 200}), []);
 });
 
+test("manual sample planning keeps large selections at native resolution", () => {
+  const fixture = createFixture();
+  const originalLoad = Module._load;
+  Module._load = function(request, parent, isMain) {
+    if (request === "photoshop") return fixture.photoshopMock;
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  let adapter;
+  try {
+    delete require.cache[require.resolve("../src/photoshop.js")];
+    adapter = require("../src/photoshop.js");
+  } finally {
+    Module._load = originalLoad;
+  }
+  const patches = adapter.manualSampleBounds({left: 20, top: 30, right: 2020, bottom: 1030});
+  assert.equal(patches.length, 16);
+  for (const patch of patches) {
+    assert.equal(patch.right - patch.left, 128);
+    assert.equal(patch.bottom - patch.top, 128);
+  }
+  assert.deepEqual(adapter.manualSampleBounds({left: 2, top: 3, right: 62, bottom: 43}), [
+    {left: 2, top: 3, right: 62, bottom: 43}
+  ]);
+});
+
 test("Photoshop adapter accepts UXP 8-bit and 16-bit enum values", () => {
   for (const depth of ["bitDepth8", "bitDepth16"]) {
     const fixture = createFixture();

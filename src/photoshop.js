@@ -2,7 +2,8 @@ const {app, core, imaging, constants, action} = require("photoshop");
 const {analyzeGrain, combineGrainAnalyses, generateGrainBand, clamp} = require("./math.js");
 
 const GRAIN_PREFIX = "MeiNoise - ";
-const MAX_ANALYSIS_EDGE = 512;
+const ANALYSIS_PATCH_EDGE = 128;
+const MAX_MANUAL_PATCHES_PER_AXIS = 4;
 const BAND_HEIGHT = 192;
 let backgroundSelectionHandler = null;
 let backgroundSelectionListenerInstalled = false;
@@ -165,6 +166,33 @@ function autoSampleBounds(targetBounds, document) {
   return result.slice(0, 24);
 }
 
+function manualSampleBounds(selectionBounds) {
+  const width = selectionBounds.right - selectionBounds.left;
+  const height = selectionBounds.bottom - selectionBounds.top;
+  const patchWidth = Math.min(ANALYSIS_PATCH_EDGE, width);
+  const patchHeight = Math.min(ANALYSIS_PATCH_EDGE, height);
+  const columns = Math.min(MAX_MANUAL_PATCHES_PER_AXIS, Math.max(1, Math.ceil(width / ANALYSIS_PATCH_EDGE)));
+  const rows = Math.min(MAX_MANUAL_PATCHES_PER_AXIS, Math.max(1, Math.ceil(height / ANALYSIS_PATCH_EDGE)));
+  const result = [];
+  for (let row = 0; row < rows; row++) {
+    const top = rows === 1
+      ? selectionBounds.top
+      : selectionBounds.top + (height - patchHeight) * row / (rows - 1);
+    for (let column = 0; column < columns; column++) {
+      const left = columns === 1
+        ? selectionBounds.left
+        : selectionBounds.left + (width - patchWidth) * column / (columns - 1);
+      result.push({
+        left: Math.round(left),
+        top: Math.round(top),
+        right: Math.round(left + patchWidth),
+        bottom: Math.round(top + patchHeight)
+      });
+    }
+  }
+  return result;
+}
+
 async function analyzeAroundTarget(target) {
   const resolved = resolveTarget(target);
   const candidates = autoSampleBounds(resolved.bounds, resolved.document);
@@ -217,43 +245,44 @@ async function analyzeSelection() {
     const sourceWidth = bounds.right - bounds.left;
     const sourceHeight = bounds.bottom - bounds.top;
     if (sourceWidth < 8 || sourceHeight < 8) throw new Error("背景选区太小。");
-    const scale = Math.min(1, MAX_ANALYSIS_EDGE / Math.max(sourceWidth, sourceHeight));
-    const targetSize = scale < 1 ? {
-      width: Math.max(8, Math.round(sourceWidth * scale)),
-      height: Math.max(8, Math.round(sourceHeight * scale))
-    } : undefined;
-
-    const pixelOptions = {
-      documentID: document.id,
-      sourceBounds: bounds,
-      componentSize: 8,
-      colorSpace: "RGB",
-      applyAlpha: true
-    };
-    if (targetSize) pixelOptions.targetSize = targetSize;
-    const selectionOptions = {documentID: document.id, sourceBounds: bounds, componentSize: 8};
-    if (targetSize) selectionOptions.targetSize = targetSize;
-
-    let pixels;
-    let selection;
-    try {
-      pixels = await imaging.getPixels(pixelOptions);
-      selection = await imaging.getSelection(selectionOptions);
-      const data = await pixels.imageData.getData({chunky: true});
-      const mask = await selection.imageData.getData({chunky: true});
-      return analyzeGrain({
-        data,
-        mask,
-        width: pixels.imageData.width,
-        height: pixels.imageData.height,
-        components: pixels.imageData.components,
-        componentSize: pixels.imageData.componentSize,
-        documentScale: sourceWidth / pixels.imageData.width
-      });
-    } finally {
-      if (pixels && pixels.imageData) pixels.imageData.dispose();
-      if (selection && selection.imageData) selection.imageData.dispose();
+    const analyses = [];
+    for (const patchBounds of manualSampleBounds(bounds)) {
+      let pixels;
+      let selection;
+      try {
+        pixels = await imaging.getPixels({
+          documentID: document.id,
+          sourceBounds: patchBounds,
+          componentSize: 8,
+          colorSpace: "RGB",
+          applyAlpha: true
+        });
+        selection = await imaging.getSelection({
+          documentID: document.id,
+          sourceBounds: patchBounds,
+          componentSize: 8
+        });
+        const data = await pixels.imageData.getData({chunky: true});
+        const mask = await selection.imageData.getData({chunky: true});
+        try {
+          analyses.push(analyzeGrain({
+            data,
+            mask,
+            width: pixels.imageData.width,
+            height: pixels.imageData.height,
+            components: pixels.imageData.components,
+            componentSize: pixels.imageData.componentSize
+          }));
+        } catch (error) {
+          if (!error || !String(error.message || error).includes("有效样本不足")) throw error;
+        }
+      } finally {
+        if (pixels && pixels.imageData) pixels.imageData.dispose();
+        if (selection && selection.imageData) selection.imageData.dispose();
+      }
     }
+    if (!analyses.length) throw new Error("选区内没有足够的平坦背景，请扩大选区并避开明显边缘或纹理。");
+    return combineGrainAnalyses(analyses);
   }, {commandName: "Analyze MeiNoise background selection"});
 }
 
@@ -324,6 +353,7 @@ async function renderPreview(target, settings, previousPreviewId, onProgress) {
             amount: clamp(settings.amount, 0, 12),
             size: clamp(settings.size, 0.5, 6),
             structure: clamp(settings.structure === undefined ? 0.65 : settings.structure, 0, 1),
+            aspect: clamp(settings.aspect === undefined ? 1 : settings.aspect, 2 / 3, 1.5),
             chroma: clamp(settings.chroma, 0, 100),
             seed: settings.seed | 0,
             toneCurve: settings.toneCurve
@@ -397,6 +427,7 @@ module.exports = {
   hasBackgroundSelection,
   listenForBackgroundSelection,
   autoSampleBounds,
+  manualSampleBounds,
   analyzeAroundTarget,
   analyzeSelection,
   renderPreview,
