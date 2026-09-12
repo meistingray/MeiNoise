@@ -249,3 +249,56 @@ test("Photoshop adapter accepts UXP 8-bit and 16-bit enum values", () => {
     assert.doesNotThrow(() => adapter.captureTarget());
   }
 });
+
+test("Photoshop adapter rejects unsupported document modes and bit depths", () => {
+  const fixture = createFixture();
+  const originalLoad = Module._load;
+  Module._load = function(request, parent, isMain) {
+    if (request === "photoshop") return fixture.photoshopMock;
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  let adapter;
+  try {
+    delete require.cache[require.resolve("../src/photoshop.js")];
+    adapter = require("../src/photoshop.js");
+  } finally {
+    Module._load = originalLoad;
+  }
+
+  fixture.document.mode = "CMYKColorMode";
+  assert.throws(() => adapter.captureTarget(), /只支持 RGB/);
+  fixture.document.mode = "RGBColorMode";
+  fixture.document.bitsPerChannel = "bitDepth32";
+  assert.throws(() => adapter.captureTarget(), /只支持 8 位和 16 位/);
+});
+
+test("render failure rolls back the suspended Photoshop history", async () => {
+  const fixture = createFixture();
+  fixture.photoshopMock.imaging.putPixels = async () => {
+    throw new Error("simulated putPixels failure");
+  };
+  const originalLoad = Module._load;
+  Module._load = function(request, parent, isMain) {
+    if (request === "photoshop") return fixture.photoshopMock;
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  let adapter;
+  try {
+    delete require.cache[require.resolve("../src/photoshop.js")];
+    adapter = require("../src/photoshop.js");
+  } finally {
+    Module._load = originalLoad;
+  }
+
+  const target = adapter.captureTarget();
+  await assert.rejects(() => adapter.renderPreview(target, {
+    amount: 2,
+    size: 1,
+    chroma: 15,
+    seed: 37,
+    toneCurve: [1, 1, 1]
+  }), /simulated putPixels failure/);
+  assert.equal(fixture.calls.history.at(-1)[0], "resume");
+  assert.equal(fixture.calls.history.at(-1)[2], false);
+  assert.equal(fixture.calls.modalDepth, 0);
+});

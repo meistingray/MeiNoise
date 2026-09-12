@@ -51,10 +51,12 @@ test("compact panel exposes every agreed interaction", () => {
   assert.doesNotMatch(styles, /(?:44px|54px|120px)/);
   assert.match(styles, /\.button[^}]*justify-content:\s*center/);
   assert.match(styles, /"Segoe UI Symbol"/);
-  assert.equal((html.match(/<sp-textfield[^>]+type="number"/g) || []).length, 4);
-  assert.equal((html.match(/<sp-slider/g) || []).length, 4);
-  assert.doesNotMatch(html, /<input[^>]+type="(?:number|range)"/);
-  assert.match(html, /show-value="false"/);
+  assert.equal((html.match(/<input[^>]+type="number"/g) || []).length, 4);
+  assert.equal((html.match(/<input[^>]+type="range"/g) || []).length, 4);
+  assert.doesNotMatch(html, /<sp-(?:textfield|slider)/);
+  assert.equal((html.match(/class="value-unit"/g) || []).length, 4);
+  assert.match(styles, /input\[type="number"\][^}]*border-radius:\s*1px/);
+  assert.match(styles, /input\[type="number"\]:focus[^}]*border-color:\s*#2680eb/);
   assert.match(controller, /onNumberInput/);
   assert.match(controller, /commitNumberInput/);
   assert.match(controller, /awaitingManualSelection[\s\S]*取消采集/);

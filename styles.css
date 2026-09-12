@@ -149,8 +149,8 @@ header p, .hint { display: block; width: 100%; margin: 1px 0 0; color: var(--mut
 
 .controls { margin: 4px 1px 0; }
 .control-block { display: block; margin-bottom: 1px; }
-.control-heading { display: flex; align-items: center; justify-content: space-between; gap: .5em; min-height: 2em; margin-bottom: 0; }
-.control-heading sp-label { margin: 0; }
+.control-heading { display: flex; align-items: center; justify-content: space-between; gap: .5em; min-height: 1.75em; margin-bottom: 0; }
+.control-heading label { margin: 0; }
 .value-editor {
   display: inline-flex;
   align-items: center;
@@ -160,9 +160,29 @@ header p, .hint { display: block; width: 100%; margin: 1px 0 0; color: var(--mut
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.value-editor sp-textfield { width: 5.2em; min-width: 0; margin: 0; }
-.seed-editor sp-textfield { width: 5.2em; }
-.control-block sp-slider { display: block; width: 100%; margin: -0.35em 0 0; }
+.value-editor input[type="number"] {
+  width: 4.15em;
+  min-width: 0;
+  height: 1.7em;
+  margin: 0;
+  padding: 0 .35em;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 1px;
+  color: var(--uxp-host-text-color, #efefef);
+  background: rgba(0,0,0,.14);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7em;
+  text-align: left;
+}
+.value-editor input[type="number"]:hover { border-color: rgba(255,255,255,.28); }
+.value-editor input[type="number"]:focus {
+  border-color: #2680eb;
+  outline: 1px solid #2680eb;
+  outline-offset: -1px;
+}
+.value-unit { display: inline-block; flex: 0 0 1.35em; width: 1.35em; text-align: left; }
+.control-block input[type="range"] { display: block; width: 100%; margin: 0; }
 
 .button {
   display: inline-flex;
